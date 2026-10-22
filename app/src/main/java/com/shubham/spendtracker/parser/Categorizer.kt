@@ -51,6 +51,24 @@ object Categorizer {
         return Regex(re).containsMatchIn(haystack)
     }
 
+    private val personName = Regex("""^[A-Za-z]+(?: [A-Za-z]+){1,3}$""")
+    private val businessWords = Regex(
+        """\b(ltd|limited|pvt|private|llp|stores?|mart|enterprises?|traders?|trading|services|solutions|agency|hotel|""" +
+            """cafe|restaurant|medical|pharma|bank|finance|payments?|india|technologies|tech|foods?|super|bazaar|shop|""" +
+            """centre|center|co|university|school|college)\b""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    // Google Pay's personal handles (name@okaxis etc.); shops mostly use other handles.
+    private val personalHandle = Regex("""^[a-z][a-z0-9._-]*@ok(axis|hdfcbank|icici|sbi)$""")
+
+    /** Whether a payee looks like a person ("RAHUL SHARMA", rahul.s@okaxis) rather than a business. */
+    fun looksLikePerson(merchant: String?): Boolean {
+        val m = merchant?.trim() ?: return false
+        if ('@' in m) return personVpa.matches(m.lowercase()) || personalHandle.matches(m.lowercase())
+        return personName.matches(m) && !businessWords.containsMatchIn(m)
+    }
+
     /** Key used to remember a user's category choice for a merchant. */
     fun merchantKey(merchant: String?): String? =
         merchant?.lowercase()?.replace(Regex("""[^a-z0-9@]"""), "")?.takeIf { it.length >= 2 }

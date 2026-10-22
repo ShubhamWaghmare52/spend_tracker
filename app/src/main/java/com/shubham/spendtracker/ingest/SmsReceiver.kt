@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
-import com.shubham.spendtracker.data.DailyLimit
+import com.shubham.spendtracker.data.Notifier
 import com.shubham.spendtracker.parser.SmsParser
 import com.shubham.spendtracker.spendApp
 import kotlinx.coroutines.launch
@@ -26,7 +26,7 @@ class SmsReceiver : BroadcastReceiver() {
                     val ts = pieces.first().timestampMillis
                     SmsParser.parse(sender, body, ts)?.let { app.repository.ingest(it) }
                 }
-                DailyLimit.checkAndNotify(context)
+                Notifier.afterNewPayment(context)
             } finally {
                 pending.finish()
             }

@@ -55,6 +55,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.shubham.spendtracker.data.DailyLimit
+import com.shubham.spendtracker.insights.RecurringDetector
+import com.shubham.spendtracker.insights.RecurringPayment
 import com.shubham.spendtracker.data.Transaction
 import com.shubham.spendtracker.parser.Categorizer
 import com.shubham.spendtracker.parser.TxnType
@@ -105,6 +107,8 @@ fun HomeScreen(
     txns: List<Transaction>,
     playIntro: Boolean,
     onIntroStarted: () -> Unit,
+    budgets: Map<String, Long>,
+    onOpenSort: () -> Unit,
     smsGranted: Boolean,
     notifEnabled: Boolean,
     onGrantSms: () -> Unit,
@@ -254,12 +258,35 @@ fun HomeScreen(
         }
         }
 
+        // Recurring payments: EMIs, recharges, subscriptions
+        val recurring = remember(txns) { RecurringDetector.detect(txns, LocalDate.now()) }
+        if (recurring.isNotEmpty()) {
+            Entrance(4, playIntro) {
+                SectionCard(
+                    "Upcoming payments",
+                    subtitle = "${formatRupees(recurring.sumOf { it.typicalPaise })} a month in repeating payments",
+                ) {
+                    recurring.take(5).forEach { r ->
+                        RecurringRow(r) {
+                            listQuery = PaymentQuery(r.merchant, 0, Long.MAX_VALUE, merchant = r.merchant)
+                        }
+                    }
+                }
+            }
+        }
+
         // Categories
         val byCategory = spent.groupBy { it.category }
             .mapValues { (_, v) -> v.sumOf { it.amountPaise } }
             .entries.sortedByDescending { it.value }
+        val unsorted = remember(txns) { uncategorisedCount(txns) }
         Entrance(4, playIntro) {
-        SectionCard("Where it went") {
+        SectionCard(
+            "Where it went",
+            subtitle = if (period == Period.MONTH && budgets.isNotEmpty()) "Bars show your monthly budgets" else null,
+            trailing = if (unsorted > 0) "Sort $unsorted" else null,
+            onTrailing = onOpenSort,
+        ) {
             if (byCategory.isEmpty()) EmptyLine("No spending in this period.")
             byCategory.forEach { (cat, amt) ->
                 BreakdownRow(
@@ -268,6 +295,7 @@ fun HomeScreen(
                     subtitle = spent.count { it.category == cat }.let { n -> "$n ${if (n == 1) "payment" else "payments"}" },
                     amount = amt,
                     share = amt.toFloat() / spentTotal.coerceAtLeast(1),
+                    budget = if (period == Period.MONTH) budgets[cat] ?: 0 else 0,
                     fill = growth::value,
                     onClick = { listQuery = PaymentQuery("${categoryEmoji(cat)} $cat", periodStart, Long.MAX_VALUE, category = cat) },
                 )
@@ -391,7 +419,21 @@ private fun BreakdownRow(
     share: Float,
     fill: () -> Float,
     onClick: () -> Unit,
+    budget: Long = 0,
 ) {
+    // With a budget, the bar measures spend against the budget instead of share of total.
+    val level = DailyLimit.level(amount, budget)
+    val barShare = if (budget > 0) amount.toFloat() / budget else share
+    val barColor = when {
+        budget <= 0 || level == DailyLimit.Level.OK -> categoryColor(category)
+        level == DailyLimit.Level.NEAR -> WarnAmber
+        else -> MaterialTheme.colorScheme.error
+    }
+    val detail = when {
+        budget <= 0 -> "$subtitle · ${(share * 100).toInt()}%"
+        level == DailyLimit.Level.OVER -> "${formatRupees(amount - budget)} over ${formatRupees(budget)} budget"
+        else -> "${formatRupees(budget - amount)} left of ${formatRupees(budget)}"
+    }
     Row(
         Modifier
             .fillMaxWidth()
@@ -415,21 +457,55 @@ private fun BreakdownRow(
             ) {
                 Box(
                     Modifier
-                        .fillMaxWidth(share.coerceIn(0.02f, 1f))
+                        .fillMaxWidth(barShare.coerceIn(0.02f, 1f))
                         .graphicsLayer {
                             scaleX = fill()
                             transformOrigin = TransformOrigin(0f, 0.5f)
                         }
                         .height(5.dp)
-                        .background(categoryColor(category), RoundedCornerShape(50)),
+                        .background(barColor, RoundedCornerShape(50)),
                 )
             }
             Spacer(Modifier.height(4.dp))
             Text(
-                "$subtitle · ${(share * 100).toInt()}%",
+                detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (budget > 0 && level != DailyLimit.Level.OK) barColor else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecurringRow(r: RecurringPayment, onClick: () -> Unit) {
+    val days = r.daysUntilDue(LocalDate.now())
+    val (due, dueColor) = when {
+        days < 0 -> "${-days} ${if (days == -1) "day" else "days"} late" to MaterialTheme.colorScheme.error
+        days == 0 -> "Due today" to WarnAmber
+        days == 1 -> "Tomorrow" to WarnAmber
+        days <= 7 -> "In $days days" to WarnAmber
+        else -> r.nextDue.format(DateTimeFormatter.ofPattern("d MMM")) to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CategoryAvatar(r.category, 40.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(r.merchant, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                "Monthly · last paid ${r.lastPaid.format(DateTimeFormatter.ofPattern("d MMM"))}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text("~${formatRupees(r.typicalPaise)}", fontWeight = FontWeight.SemiBold)
+            Text(due, style = MaterialTheme.typography.labelMedium, color = dueColor, fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -542,28 +618,5 @@ private fun LimitCard(spentToday: Long, limit: Long, fill: () -> Float, onEdit: 
 }
 
 @Composable
-private fun LimitDialog(current: Long, onDismiss: () -> Unit, onSave: (Long) -> Unit) {
-    var text by remember { mutableStateOf(if (current > 0) (current / 100).toString() else "") }
-    val rupees = text.toLongOrNull()
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Daily spending limit") },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { v -> text = v.filter(Char::isDigit).take(7) },
-                prefix = { Text("₹") },
-                placeholder = { Text("1000") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave((rupees ?: 0) * 100) }, enabled = rupees != null && rupees > 0) { Text("Save") }
-        },
-        dismissButton = {
-            if (current > 0) TextButton(onClick = { onSave(0) }) { Text("Remove limit") }
-            else TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
-}
+private fun LimitDialog(current: Long, onDismiss: () -> Unit, onSave: (Long) -> Unit) =
+    AmountDialog("Daily spending limit", current, "Remove limit", onDismiss, onSave)

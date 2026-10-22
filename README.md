@@ -15,6 +15,12 @@ One payment usually produces both an SMS and a notification. They are merged int
 - **Tappable charts**: tap a day's bar, a category or a merchant to see the payments behind it.
 - **Payment details**: merchant, time, bank or app, account, UPI reference and the original SMS. Changing a category is remembered for that merchant.
 - **Daily limit**: a progress bar on the Overview, plus a notification at 80% and when you go over.
+- **Monthly budgets per category**: alerts at 80% and when you go over, and the Overview's category bars track each budget.
+- **Month-end summary**: a notification on the 1st with total spent, the change from the month before, your top category and any budgets you went over.
+- **Upcoming payments**: finds monthly repeats such as EMIs, recharges and subscriptions, and shows when each is next due. It still matches a payee when the bank changes its name.
+- **Home screen widget**: today's spending against your daily limit, shown as a ring that turns amber at 80% and coral when you're over.
+- **Sort payments**: works through uncategorised spending merchant by merchant, biggest first. People are detected and suggested as Transfers.
+- **CSV backup**: export to a spreadsheet-friendly file and import it later, skipping payments that are already there.
 - **Self-transfer detection**: a debit in one of your accounts and a credit in another with the same UPI reference are marked automatically and left out of totals.
 - **Auto-categorisation**: Food, Groceries, Shopping, Travel, Bills, and more.
 - **Search and filters** on the Payments tab.
@@ -24,7 +30,7 @@ One payment usually produces both an SMS and a notification. They are merged int
 
 - All data stays on the device in a local Room database.
 - The app **does not request the `INTERNET` permission**, so it cannot send anything anywhere.
-- Backups are disabled (`allowBackup="false"`), so your transactions aren't copied to cloud backups.
+- Backups are disabled (`allowBackup="false"`), so your transactions aren't copied to cloud backups. CSV export is the only way data leaves the app, and you choose where the file goes through Android's file picker.
 
 ## Requirements
 
@@ -49,7 +55,7 @@ When you first open the app, grant:
 
 1. **SMS access**: imports the last 90 days of bank alerts and catches new ones.
 2. **Notification access**: reads payment notifications from UPI apps.
-3. **Notifications** (optional): for the daily-limit alerts.
+3. **Notifications** (optional): for daily-limit and budget alerts, and the monthly summary. Each has its own notification channel, so you can mute them separately.
 
 On Android 13+, a sideloaded APK may show these as *Restricted settings*. To allow them, go to **Settings → Apps → Spend Tracker → ⋮ → Allow restricted settings**.
 
@@ -62,11 +68,13 @@ app/src/main/java/com/shubham/spendtracker/
 │             Categorizer                      → merchant → category
 ├── ingest/   SmsReceiver (live SMS), InboxBackfill (past 90 days),
 │             PaymentNotificationListener (UPI apps)
-├── data/     Room database, TransactionRepository, DailyLimit
-└── ui/       Jetpack Compose screens: Overview, Payments, detail sheets, motion
+├── data/     Room database, TransactionRepository, DailyLimit, Budgets, CsvBackup, Notifier
+├── insights/ RecurringDetector, MonthlySummary (+ WorkManager job for the 1st of the month)
+├── widget/   SpendWidget (home screen widget)
+└── ui/       Jetpack Compose screens: Overview, Payments, Sort, Budgets, detail sheets, motion
 ```
 
-Parsing is plain Kotlin with no Android dependencies, and it is covered by unit tests in `app/src/test`. To support a new bank format, add an example message (with the numbers changed) to `ParserTest.kt`, make it pass, and bump `PARSER_VERSION` in `MainActivity` so existing installs re-scan their SMS.
+Parsing, recurring-payment detection, the monthly summary and the CSV format are plain Kotlin with no Android dependencies, and they are covered by unit tests in `app/src/test`. To support a new bank format, add an example message (with the numbers changed) to `ParserTest.kt`, make it pass, and bump `PARSER_VERSION` in `MainActivity` so existing installs re-scan their SMS.
 
 ## Limitations
 

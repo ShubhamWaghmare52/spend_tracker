@@ -71,6 +71,31 @@ class TransactionRepository(private val dao: TransactionDao) {
     /** Money spent since [from], not counting transfers between the user's own accounts. */
     suspend fun spentSince(from: Long): Long = dao.spentSince(from, Categorizer.SELF)
 
-    /** Drops SMS-derived rows so an improved parser can re-import them. Category choices are kept. */
-    suspend fun clearSmsImports() = ingestLock.withLock { dao.deleteSmsImports() }
+    /**
+     * Drops SMS-derived rows inside the re-import window so an improved parser can re-read them.
+     * Older rows (e.g. restored from a backup) are kept, since the inbox scan can't bring them back.
+     */
+    suspend fun clearSmsImports(since: Long) = ingestLock.withLock { dao.deleteSmsImportsSince(since) }
+
+    suspend fun allOnce(): List<Transaction> = dao.all()
+
+    suspend fun spentInCategorySince(category: String, from: Long): Long = dao.spentInCategorySince(category, from)
+
+    /**
+     * Restores rows from a backup, skipping ones already present (same time, amount and direction).
+     * Categories the user picked are remembered for their merchants. Returns how many were added.
+     */
+    suspend fun importBackup(rows: List<Transaction>): Int = ingestLock.withLock {
+        var added = 0
+        for (row in rows) {
+            if (dao.countSame(row.timestamp, row.amountPaise, row.type.name) > 0) continue
+            dao.insert(row.copy(id = 0))
+            added++
+            val key = Categorizer.merchantKey(row.merchant) ?: continue
+            if (row.category != Categorizer.categorize(row.type, row.merchant, row.rawText)) {
+                dao.saveMerchantCategory(MerchantCategory(key, row.category))
+            }
+        }
+        added
+    }
 }

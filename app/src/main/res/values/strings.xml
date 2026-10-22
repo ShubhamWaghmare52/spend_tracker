@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Spend Tracker</string>
+    <string name="widget_description">Today\'s spending against your daily limit</string>
 </resources>

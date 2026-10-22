@@ -35,8 +35,17 @@ interface TransactionDao {
     @Query("SELECT COALESCE(SUM(amountPaise), 0) FROM transactions WHERE type = 'DEBIT' AND category != :excluded AND timestamp >= :from")
     suspend fun spentSince(from: Long, excluded: String): Long
 
-    @Query("DELETE FROM transactions WHERE source = 'SMS'")
-    suspend fun deleteSmsImports()
+    @Query("DELETE FROM transactions WHERE source = 'SMS' AND timestamp >= :since")
+    suspend fun deleteSmsImportsSince(since: Long)
+
+    @Query("SELECT * FROM transactions ORDER BY timestamp")
+    suspend fun all(): List<Transaction>
+
+    @Query("SELECT COUNT(*) FROM transactions WHERE timestamp = :timestamp AND amountPaise = :amountPaise AND type = :type")
+    suspend fun countSame(timestamp: Long, amountPaise: Long, type: String): Int
+
+    @Query("SELECT COALESCE(SUM(amountPaise), 0) FROM transactions WHERE type = 'DEBIT' AND category = :category AND timestamp >= :from")
+    suspend fun spentInCategorySince(category: String, from: Long): Long
 
     @Query("UPDATE transactions SET category = :category WHERE merchant = :merchant")
     suspend fun setCategoryForMerchant(merchant: String, category: String)

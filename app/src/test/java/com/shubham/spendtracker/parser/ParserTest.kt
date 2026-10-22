@@ -216,6 +216,16 @@ class DedupeAndCategoryTest {
         assertEquals(DailyLimit.Level.OK, DailyLimit.level(500_000, 0))
     }
 
+    @Test fun peopleVsBusinesses() {
+        assertEquals(true, Categorizer.looksLikePerson("RAHUL KUMAR SHARMA"))
+        assertEquals(true, Categorizer.looksLikePerson("rahul.k@okaxis"))
+        assertEquals(true, Categorizer.looksLikePerson("9876543210@ybl"))
+        assertEquals(false, Categorizer.looksLikePerson("CHAITANYA TRADING PRIVATE LIMITED"))
+        assertEquals(false, Categorizer.looksLikePerson("DELUX BAKERY AND CAFE"))
+        assertEquals(false, Categorizer.looksLikePerson("swiggy@icici"))
+        assertEquals(false, Categorizer.looksLikePerson(null))
+    }
+
     @Test fun categories() {
         assertEquals("Food", Categorizer.categorize(TxnType.DEBIT, "SWIGGY", ""))
         assertEquals("Travel", Categorizer.categorize(TxnType.DEBIT, "uber.rides@icici", ""))

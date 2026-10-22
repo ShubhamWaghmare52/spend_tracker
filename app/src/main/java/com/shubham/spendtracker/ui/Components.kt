@@ -47,6 +47,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.KeyboardType
 import com.shubham.spendtracker.data.Transaction
 import com.shubham.spendtracker.parser.Categorizer
 import com.shubham.spendtracker.parser.TxnType
@@ -113,6 +117,34 @@ fun TxnRow(t: Transaction, onClick: () -> Unit, showDay: Boolean = false) {
             )
         }
     }
+}
+
+/** Asks for a rupee amount. Saving 0 (via [removeLabel]) clears it. */
+@Composable
+fun AmountDialog(title: String, current: Long, removeLabel: String, onDismiss: () -> Unit, onSave: (Long) -> Unit) {
+    var text by remember { mutableStateOf(if (current > 0) (current / 100).toString() else "") }
+    val rupees = text.toLongOrNull()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { v -> text = v.filter(Char::isDigit).take(7) },
+                prefix = { Text("₹") },
+                placeholder = { Text("1000") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave((rupees ?: 0) * 100) }, enabled = rupees != null && rupees > 0) { Text("Save") }
+        },
+        dismissButton = {
+            if (current > 0) TextButton(onClick = { onSave(0) }) { Text(removeLabel) }
+            else TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }
 
 /** Which payments a list sheet shows: a day, a category or a merchant within a time range. */

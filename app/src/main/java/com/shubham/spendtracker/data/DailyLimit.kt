@@ -1,17 +1,6 @@
 package com.shubham.spendtracker.data
 
-import android.Manifest
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import androidx.core.app.NotificationCompat
-import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
-import com.shubham.spendtracker.MainActivity
-import com.shubham.spendtracker.R
 import com.shubham.spendtracker.spendApp
 import com.shubham.spendtracker.ui.formatRupees
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +14,6 @@ object DailyLimit {
     private const val KEY_LIMIT = "daily_limit_paise"
     private const val KEY_ALERT_DAY = "limit_alert_day"
     private const val KEY_ALERT_LEVEL = "limit_alert_level"
-    private const val CHANNEL = "daily_limit"
 
     enum class Level { OK, NEAR, OVER }
 
@@ -70,30 +58,7 @@ object DailyLimit {
         } else {
             "Close to your daily limit" to "${formatRupees(spent)} of ${formatRupees(limit)} spent today. ${formatRupees(limit - spent)} left."
         }
-        notify(context, title, text)
-    }
-
-    private fun notify(context: Context, title: String, text: String) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
-            android.os.Build.VERSION.SDK_INT >= 33
-        ) return
-        val nm = context.getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(NotificationChannel(CHANNEL, "Daily limit alerts", NotificationManager.IMPORTANCE_HIGH))
-        val open = PendingIntent.getActivity(
-            context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
-        )
-        val n = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_stat_limit)
-            .setContentTitle(title)
-            .setContentText(text)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
-            .setContentIntent(open)
-            .setAutoCancel(true)
-            .build()
-        try {
-            NotificationManagerCompat.from(context).notify(1001, n)
-        } catch (_: SecurityException) {
-        }
+        Notifier.notify(context, Notifier.Channel.LIMIT, 1001, title, text)
     }
 
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

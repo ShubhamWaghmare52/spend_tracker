@@ -9,8 +9,11 @@ import com.shubham.spendtracker.spendApp
 object InboxBackfill {
     private const val DAYS = 90L
 
+    /** Start of the window the inbox scan covers. */
+    fun windowStart(): Long = System.currentTimeMillis() - DAYS * 24 * 60 * 60 * 1000
+
     suspend fun run(context: Context): Int {
-        val since = System.currentTimeMillis() - DAYS * 24 * 60 * 60 * 1000
+        val since = windowStart()
         val repo = context.spendApp.repository
         var imported = 0
         context.contentResolver.query(

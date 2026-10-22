@@ -6,6 +6,19 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.net.Uri
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
+import com.shubham.spendtracker.data.Budgets
+import com.shubham.spendtracker.data.CsvBackup
+import com.shubham.spendtracker.ui.BudgetsScreen
+import com.shubham.spendtracker.ui.SortScreen
+import java.time.LocalDate
 import android.os.SystemClock
 import android.view.animation.PathInterpolator
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -105,64 +118,157 @@ class MainActivity : ComponentActivity() {
 
                 val dailyLimit by DailyLimit.limit(context).collectAsStateWithLifecycle()
                 val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+                fun askNotificationPermission() {
+                    // Limit, budget and summary alerts are notifications, which need permission on Android 13+.
+                    if (Build.VERSION.SDK_INT >= 33 &&
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+                val budgets by Budgets.budgets(context).collectAsStateWithLifecycle()
+                var page by rememberSaveable { mutableStateOf(Page.MAIN) }
+                var menuOpen by remember { mutableStateOf(false) }
+                BackHandler(enabled = page != Page.MAIN) { page = Page.MAIN }
+
+                val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+                    if (uri != null) app.appScope.launch { exportBackup(uri) }
+                }
+                val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                    if (uri != null) app.appScope.launch { importBackup(uri) }
+                }
+                val setCategory: (Transaction, String) -> Unit = { t, c -> app.appScope.launch { app.repository.setCategory(t, c) } }
+                val delete: (Transaction) -> Unit = { t -> app.appScope.launch { app.repository.delete(t) } }
 
                 Scaffold(
-                    topBar = { TopAppBar(title = { Text(if (tab == 0) "Spend Tracker" else "Payments") }) },
+                    topBar = {
+                        TopAppBar(
+                            title = {
+                                Text(
+                                    when (page) {
+                                        Page.SORT -> "Sort payments"
+                                        Page.BUDGETS -> "Budgets"
+                                        Page.MAIN -> if (tab == 0) "Spend Tracker" else "Payments"
+                                    },
+                                )
+                            },
+                            navigationIcon = {
+                                if (page != Page.MAIN) {
+                                    IconButton(onClick = { page = Page.MAIN }) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                                    }
+                                }
+                            },
+                            actions = {
+                                if (page == Page.MAIN) {
+                                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
+                                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                        DropdownMenuItem(text = { Text("Sort payments") }, onClick = { menuOpen = false; page = Page.SORT })
+                                        DropdownMenuItem(text = { Text("Budgets") }, onClick = { menuOpen = false; page = Page.BUDGETS })
+                                        HorizontalDivider()
+                                        DropdownMenuItem(
+                                            text = { Text("Export backup (CSV)") },
+                                            onClick = { menuOpen = false; exportLauncher.launch("spend-tracker-${LocalDate.now()}.csv") },
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Import backup") },
+                                            onClick = { menuOpen = false; importLauncher.launch(arrayOf("text/*", "application/octet-stream")) },
+                                        )
+                                    }
+                                }
+                            },
+                        )
+                    },
                     bottomBar = {
-                        NavigationBar {
-                            NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Icons.Filled.Home, null) }, label = { Text("Overview") })
-                            NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.AutoMirrored.Filled.List, null) }, label = { Text("Payments") })
+                        if (page == Page.MAIN) {
+                            NavigationBar {
+                                NavigationBarItem(tab == 0, { tab = 0 }, { Icon(Icons.Filled.Home, null) }, label = { Text("Overview") })
+                                NavigationBarItem(tab == 1, { tab = 1 }, { Icon(Icons.AutoMirrored.Filled.List, null) }, label = { Text("Payments") })
+                            }
                         }
                     },
                 ) { padding ->
+                    // Pages slide in from the right over the tabs; tabs slide in the direction you move.
                     AnimatedContent(
-                        targetState = tab,
+                        targetState = page to tab,
                         transitionSpec = {
-                            val dir = if (targetState > initialState) 1 else -1
+                            val dir = when {
+                                targetState.first != initialState.first -> if (targetState.first != Page.MAIN) 1 else -1
+                                else -> if (targetState.second > initialState.second) 1 else -1
+                            }
                             (fadeIn(tween(220, delayMillis = 60)) + slideInHorizontally(tween(280)) { dir * it / 10 }) togetherWith
                                 fadeOut(tween(120))
                         },
-                        label = "tab",
-                    ) { shown ->
-                    if (shown == 0) {
-                        HomeScreen(
-                            txns = txns,
-                            playIntro = !introPlayed,
-                            onIntroStarted = { introPlayed = true },
-                            smsGranted = smsGranted,
-                            notifEnabled = notifEnabled,
-                            onGrantSms = {
-                                smsLauncher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS))
-                            },
-                            onEnableNotif = {
-                                context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                            },
-                            dailyLimit = dailyLimit,
-                            onSetLimit = { paise ->
-                                DailyLimit.setLimit(context, paise)
-                                // Limit alerts are notifications, which need permission on Android 13+.
-                                if (paise > 0 && Build.VERSION.SDK_INT >= 33 &&
-                                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                                ) {
-                                    notifPermLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                }
-                            },
-                            onSetCategory = { t, c -> app.appScope.launch { app.repository.setCategory(t, c) } },
-                            onDelete = { t -> app.appScope.launch { app.repository.delete(t) } },
-                            modifier = Modifier.padding(padding),
-                        )
-                    } else {
-                        TransactionsScreen(
-                            txns = txns,
-                            onSetCategory = { t, c -> app.appScope.launch { app.repository.setCategory(t, c) } },
-                            onDelete = { t -> app.appScope.launch { app.repository.delete(t) } },
-                            modifier = Modifier.padding(padding),
-                        )
-                    }
+                        label = "page",
+                    ) { (shownPage, shownTab) ->
+                        val m = Modifier.padding(padding)
+                        when {
+                            shownPage == Page.SORT -> SortScreen(txns, setCategory, m)
+                            shownPage == Page.BUDGETS -> BudgetsScreen(
+                                txns, budgets.orEmpty(),
+                                onSetBudget = { cat, paise ->
+                                    Budgets.set(context, cat, paise)
+                                    if (paise > 0) askNotificationPermission()
+                                },
+                                modifier = m,
+                            )
+                            shownTab == 0 -> HomeScreen(
+                                txns = txns,
+                                playIntro = !introPlayed,
+                                onIntroStarted = { introPlayed = true },
+                                budgets = budgets.orEmpty(),
+                                onOpenSort = { page = Page.SORT },
+                                smsGranted = smsGranted,
+                                notifEnabled = notifEnabled,
+                                onGrantSms = {
+                                    smsLauncher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS))
+                                },
+                                onEnableNotif = {
+                                    context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                                },
+                                dailyLimit = dailyLimit,
+                                onSetLimit = { paise ->
+                                    DailyLimit.setLimit(context, paise)
+                                    if (paise > 0) askNotificationPermission()
+                                },
+                                onSetCategory = setCategory,
+                                onDelete = delete,
+                                modifier = m,
+                            )
+                            else -> TransactionsScreen(txns, setCategory, delete, m)
+                        }
                     }
                 }
             }
         }
+    }
+
+    private enum class Page { MAIN, SORT, BUDGETS }
+
+    private suspend fun exportBackup(uri: Uri) {
+        val rows = spendApp.repository.allOnce()
+        val ok = runCatching {
+            contentResolver.openOutputStream(uri)?.use { it.write(CsvBackup.write(rows).toByteArray()) } ?: error("no stream")
+        }.isSuccess
+        toast(if (ok) "Exported ${rows.size} payments" else "Couldn't save the backup")
+    }
+
+    private suspend fun importBackup(uri: Uri) {
+        val message = try {
+            val text = contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } ?: error("no stream")
+            val rows = CsvBackup.read(text)
+            val added = spendApp.repository.importBackup(rows)
+            "Restored $added payments" + if (rows.size > added) " (${rows.size - added} were already here)" else ""
+        } catch (e: IllegalArgumentException) {
+            "That file isn't a Spend Tracker backup"
+        } catch (e: Exception) {
+            "Couldn't read the backup"
+        }
+        toast(message)
+    }
+
+    private suspend fun toast(text: String) = withContext(Dispatchers.Main) {
+        Toast.makeText(this@MainActivity, text, Toast.LENGTH_LONG).show()
     }
 
     companion object {
@@ -185,7 +291,7 @@ class MainActivity : ComponentActivity() {
             prefs.edit().putInt(KEY_PARSER_VERSION, PARSER_VERSION).apply()
             val app = context.spendApp
             app.appScope.launch {
-                if (done > 0) app.repository.clearSmsImports()
+                if (done > 0) app.repository.clearSmsImports(InboxBackfill.windowStart())
                 val found = InboxBackfill.run(context)
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "Imported $found payments from SMS", Toast.LENGTH_LONG).show()

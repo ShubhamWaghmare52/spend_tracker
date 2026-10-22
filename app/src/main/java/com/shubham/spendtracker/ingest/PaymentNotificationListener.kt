@@ -5,7 +5,7 @@ import android.content.Context
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationManagerCompat
-import com.shubham.spendtracker.data.DailyLimit
+import com.shubham.spendtracker.data.Notifier
 import com.shubham.spendtracker.parser.NotificationParser
 import com.shubham.spendtracker.spendApp
 import kotlinx.coroutines.launch
@@ -26,7 +26,7 @@ class PaymentNotificationListener : NotificationListenerService() {
         val app = spendApp
         app.appScope.launch {
             app.repository.ingest(parsed)
-            DailyLimit.checkAndNotify(app)
+            Notifier.afterNewPayment(app)
         }
     }
 

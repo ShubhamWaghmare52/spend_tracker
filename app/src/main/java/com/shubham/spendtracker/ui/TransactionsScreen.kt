@@ -153,7 +153,7 @@ fun TransactionsScreen(
                     val daySpent = list.filter { it.type == TxnType.DEBIT && it.category != Categorizer.SELF }.sumOf { it.amountPaise }
                     if (daySpent > 0) {
                         Text(
-                            formatRupees(daySpent),
+                            formatRupeesShort(daySpent),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -197,7 +197,7 @@ private fun SummaryTile(label: String, paise: Long, count: Int, color: Color, mo
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainer, modifier = modifier) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
             Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(formatRupees(paise), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = color)
+            Text(formatRupeesShort(paise), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = color)
             Text(
                 "$count ${if (count == 1) "payment" else "payments"}",
                 style = MaterialTheme.typography.bodySmall,

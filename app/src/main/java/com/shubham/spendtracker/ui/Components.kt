@@ -2,6 +2,9 @@ package com.shubham.spendtracker.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -67,6 +70,51 @@ fun CategoryAvatar(category: String, size: Dp = 42.dp) {
     }
 }
 
+// Mid-tone colours that carry white initials in both light and dark themes.
+private val monogramColors = listOf(
+    Color(0xFF5C6BC0), Color(0xFF26A69A), Color(0xFFEF6C00), Color(0xFF8E24AA),
+    Color(0xFF00897B), Color(0xFFD81B60), Color(0xFF3949AB), Color(0xFF6D4C41),
+    Color(0xFF43A047), Color(0xFFF4511E), Color(0xFF1E88E5), Color(0xFF7CB342),
+)
+
+/**
+ * A payee's initials on its own colour, with the category emoji as a small badge.
+ * Falls back to the plain category tile when there's no payee name.
+ */
+@Composable
+fun MerchantAvatar(merchant: String?, category: String, size: Dp = 42.dp) {
+    if (merchant.isNullOrBlank()) {
+        CategoryAvatar(category, size)
+        return
+    }
+    val badge = size * 0.46f
+    Box(Modifier.size(size + badge * 0.25f)) {
+        Box(
+            Modifier
+                .size(size)
+                .background(monogramColors[monogramSlot(merchant, monogramColors.size)], CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                monogram(merchant),
+                color = Color.White,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = (size.value * 0.36f).sp,
+            )
+        }
+        Box(
+            Modifier
+                .align(Alignment.BottomEnd)
+                .size(badge)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape)
+                .border(1.5.dp, MaterialTheme.colorScheme.surfaceContainer, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(categoryEmoji(category), fontSize = (badge.value * 0.55f).sp)
+        }
+    }
+}
+
 fun amountText(t: Transaction): String =
     (if (t.type == TxnType.CREDIT) "+" else "") + formatRupees(t.amountPaise)
 
@@ -83,7 +131,7 @@ fun TxnRow(t: Transaction, onClick: () -> Unit, showDay: Boolean = false) {
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CategoryAvatar(t.category)
+        MerchantAvatar(t.merchant, t.category)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
@@ -178,8 +226,8 @@ fun PaymentListSheet(query: PaymentQuery, txns: List<Transaction>, onDismiss: ()
             Spacer(Modifier.height(4.dp))
             Text(
                 buildString {
-                    append("${formatRupees(spent)} spent")
-                    if (received > 0) append(" · ${formatRupees(received)} received")
+                    append("${formatRupeesShort(spent)} spent")
+                    if (received > 0) append(" · ${formatRupeesShort(received)} received")
                     append(" · ${list.size} ${if (list.size == 1) "payment" else "payments"}")
                 },
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -228,7 +276,7 @@ fun TxnDetailSheet(
                 .padding(bottom = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            CategoryAvatar(txn.category, 64.dp)
+            MerchantAvatar(txn.merchant, txn.category, 64.dp)
             Spacer(Modifier.height(12.dp))
             Text(
                 txn.merchant ?: "Unknown payee",

@@ -165,45 +165,25 @@ fun HomeScreen(
         }
         }
 
-        // Headline total
+        // Hero: period total on the brand gradient, with today's limit as the icon's ring
         Entrance(1, playIntro) {
-        Column {
-            Text(
-                when (period) {
+            HeroCard(
+                label = when (period) {
                     Period.TODAY -> "Spent today"
                     Period.WEEK -> "Spent this week"
                     Period.MONTH -> "Spent this month"
                 },
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            CountUpRupees(spentTotal, MaterialTheme.typography.displayMedium, FontWeight.SemiBold)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (prevTotal > 0 || spentTotal > 0) {
-                    val diff = spentTotal - prevTotal
-                    val up = diff > 0
-                    Text(
-                        (if (up) "▲ " else "▼ ") + formatRupees(abs(diff)),
-                        color = if (up) MaterialTheme.colorScheme.error else CreditGreen,
-                        fontWeight = FontWeight.SemiBold,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Text(
-                        "${if (up) "more" else "less"} than ${period.noun}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            }
-            Text(
-                "${spent.size} ${if (spent.size == 1) "payment" else "payments"} · ${formatRupees(receivedTotal)} received",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
+                spent = spentTotal,
+                previous = prevTotal,
+                previousNoun = period.noun,
+                payments = spent.size,
+                received = receivedTotal,
+                spentToday = spentToday,
+                dailyLimit = dailyLimit,
+                fill = growth::value,
+                onEditLimit = { editingLimit = true },
             )
         }
-        }
-
-        Entrance(2, playIntro) { LimitCard(spentToday, dailyLimit, growth::value, onEdit = { editingLimit = true }) }
 
         // Chart, or today's list
         Entrance(3, playIntro) {
@@ -243,12 +223,12 @@ fun HomeScreen(
                     }
                     val avgDays = (todayIdx + 1).coerceAtLeast(1)
                     Row(Modifier.fillMaxWidth()) {
-                        Stat("Daily average", formatRupees(spentTotal / avgDays), Modifier.weight(1f))
+                        Stat("Daily average", formatRupeesShort(spentTotal / avgDays), Modifier.weight(1f))
                         val best = perDay.withIndex().maxByOrNull { it.value }
                         if (best != null && best.value > 0) {
                             Stat(
                                 "Biggest day",
-                                "${formatRupees(best.value)} · ${start.plusDays(best.index.toLong()).format(DateTimeFormatter.ofPattern("EEE d"))}",
+                                "${formatRupeesShort(best.value)} · ${start.plusDays(best.index.toLong()).format(DateTimeFormatter.ofPattern("EEE d"))}",
                                 Modifier.weight(1f),
                             )
                         }
@@ -264,7 +244,7 @@ fun HomeScreen(
             Entrance(4, playIntro) {
                 SectionCard(
                     "Upcoming payments",
-                    subtitle = "${formatRupees(recurring.sumOf { it.typicalPaise })} a month in repeating payments",
+                    subtitle = "${formatRupeesShort(recurring.sumOf { it.typicalPaise })} a month in repeating payments",
                 ) {
                     recurring.take(5).forEach { r ->
                         RecurringRow(r) {
@@ -313,6 +293,7 @@ fun HomeScreen(
                     val amt = list.sumOf { it.amountPaise }
                     BreakdownRow(
                         category = list.first().category,
+                        merchant = merchant,
                         title = merchant,
                         subtitle = "${list.size} ${if (list.size == 1) "payment" else "payments"} · ${list.first().category}",
                         amount = amt,
@@ -397,7 +378,7 @@ private fun BarChart(
                 CornerRadius(minOf(barW / 2, 8.dp.toPx())),
             )
             if (i == selected && v > 0) {
-                val m = measurer.measure(formatRupees(v), selectedStyle)
+                val m = measurer.measure(formatRupeesShort(v), selectedStyle)
                 val tx = (i * slot + slot / 2 - m.size.width / 2).coerceIn(0f, size.width - m.size.width)
                 drawText(m, topLeft = Offset(tx, valueH + chartH - h - m.size.height - 2.dp.toPx()))
             }
@@ -420,6 +401,7 @@ private fun BreakdownRow(
     fill: () -> Float,
     onClick: () -> Unit,
     budget: Long = 0,
+    merchant: String? = null,
 ) {
     // With a budget, the bar measures spend against the budget instead of share of total.
     val level = DailyLimit.level(amount, budget)
@@ -431,8 +413,8 @@ private fun BreakdownRow(
     }
     val detail = when {
         budget <= 0 -> "$subtitle · ${(share * 100).toInt()}%"
-        level == DailyLimit.Level.OVER -> "${formatRupees(amount - budget)} over ${formatRupees(budget)} budget"
-        else -> "${formatRupees(budget - amount)} left of ${formatRupees(budget)}"
+        level == DailyLimit.Level.OVER -> "${formatRupeesShort(amount - budget)} over ${formatRupeesShort(budget)} budget"
+        else -> "${formatRupeesShort(budget - amount)} left of ${formatRupeesShort(budget)}"
     }
     Row(
         Modifier
@@ -441,12 +423,12 @@ private fun BreakdownRow(
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CategoryAvatar(category, 40.dp)
+        if (merchant != null) MerchantAvatar(merchant, category, 40.dp) else CategoryAvatar(category, 40.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, Modifier.weight(1f), fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(formatRupees(amount), fontWeight = FontWeight.SemiBold)
+                Text(formatRupeesShort(amount), fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(6.dp))
             Box(
@@ -493,7 +475,7 @@ private fun RecurringRow(r: RecurringPayment, onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CategoryAvatar(r.category, 40.dp)
+        MerchantAvatar(r.merchant, r.category, 40.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(r.merchant, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -504,7 +486,7 @@ private fun RecurringRow(r: RecurringPayment, onClick: () -> Unit) {
             )
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text("~${formatRupees(r.typicalPaise)}", fontWeight = FontWeight.SemiBold)
+            Text("~${formatRupeesShort(r.typicalPaise)}", fontWeight = FontWeight.SemiBold)
             Text(due, style = MaterialTheme.typography.labelMedium, color = dueColor, fontWeight = FontWeight.Medium)
         }
     }
@@ -564,55 +546,6 @@ private fun SetupCard(smsGranted: Boolean, notifEnabled: Boolean, onGrantSms: ()
             )
             if (!smsGranted) Button(onClick = onGrantSms) { Text("Allow SMS access") }
             if (!notifEnabled) OutlinedButton(onClick = onEnableNotif) { Text("Allow notification access") }
-        }
-    }
-}
-
-@Composable
-private fun LimitCard(spentToday: Long, limit: Long, fill: () -> Float, onEdit: () -> Unit) {
-    Card(
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-    ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (limit <= 0) {
-                Text("Daily limit", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Set how much you want to spend per day. You'll get a notification at 80% and when you cross it.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedButton(onClick = onEdit) { Text("Set daily limit") }
-                return@Column
-            }
-            val level = DailyLimit.level(spentToday, limit)
-            val color = when (level) {
-                DailyLimit.Level.OK -> MaterialTheme.colorScheme.primary
-                DailyLimit.Level.NEAR -> WarnAmber
-                DailyLimit.Level.OVER -> MaterialTheme.colorScheme.error
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Today's limit", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                TextButton(onClick = onEdit) { Text("${formatRupees(limit)} · Edit") }
-            }
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(formatRupees(spentToday), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.weight(1f))
-                Text(
-                    if (level == DailyLimit.Level.OVER) "${formatRupees(spentToday - limit)} over"
-                    else "${formatRupees(limit - spentToday)} left",
-                    color = color,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
-            LinearProgressIndicator(
-                progress = { (spentToday.toFloat() / limit).coerceIn(0f, 1f) * fill() },
-                modifier = Modifier.fillMaxWidth().height(8.dp),
-                color = color,
-                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                strokeCap = StrokeCap.Round,
-                drawStopIndicator = {},
-            )
         }
     }
 }

@@ -17,7 +17,7 @@ import com.shubham.spendtracker.MainActivity
 import com.shubham.spendtracker.R
 import com.shubham.spendtracker.data.DailyLimit
 import com.shubham.spendtracker.spendApp
-import com.shubham.spendtracker.ui.formatRupees
+import com.shubham.spendtracker.ui.formatRupeesShort
 import kotlinx.coroutines.launch
 
 /** Home screen widget: today's spending against the daily limit, drawn as the app-icon ring. */
@@ -58,15 +58,15 @@ class SpendWidget : AppWidgetProvider() {
             val fraction = if (limit > 0) (spent.toFloat() / limit).coerceIn(0f, 1f) else 0f
             val detail = when {
                 limit <= 0 -> "Set a daily limit in the app"
-                level == DailyLimit.Level.OVER -> "${formatRupees(spent - limit)} over your ${formatRupees(limit)} limit"
-                else -> "${formatRupees(limit - spent)} left of ${formatRupees(limit)}"
+                level == DailyLimit.Level.OVER -> "${formatRupeesShort(spent - limit)} over your ${formatRupeesShort(limit)} limit"
+                else -> "${formatRupeesShort(limit - spent)} left of ${formatRupeesShort(limit)}"
             }
             val open = PendingIntent.getActivity(
                 context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
             )
             return RemoteViews(context.packageName, R.layout.widget_spend).apply {
                 setImageViewBitmap(R.id.widget_ring, ring(context, fraction, color))
-                setTextViewText(R.id.widget_amount, formatRupees(spent))
+                setTextViewText(R.id.widget_amount, formatRupeesShort(spent))
                 setTextViewText(R.id.widget_detail, detail)
                 setOnClickPendingIntent(android.R.id.background, open)
             }

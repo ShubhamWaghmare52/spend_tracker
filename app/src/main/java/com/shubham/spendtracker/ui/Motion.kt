@@ -53,7 +53,7 @@ fun CountUpRupees(paise: Long, style: TextStyle, fontWeight: FontWeight? = null)
     }
     val shown = start + ((paise - start) * progress.value).toLong()
     from[0] = shown
-    Text(formatRupees(shown), style = style, fontWeight = fontWeight)
+    Text(formatRupeesShort(shown), style = style, fontWeight = fontWeight)
 }
 
 /** 0→1 progress that replays whenever [key] changes; used to grow bars and fill meters. */

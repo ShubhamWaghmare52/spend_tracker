@@ -2,7 +2,7 @@ package com.shubham.spendtracker.data
 
 import android.content.Context
 import com.shubham.spendtracker.spendApp
-import com.shubham.spendtracker.ui.formatRupees
+import com.shubham.spendtracker.ui.formatRupeesShort
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.time.LocalDate
@@ -54,9 +54,9 @@ object DailyLimit {
         p.edit().putString(KEY_ALERT_DAY, today).putInt(KEY_ALERT_LEVEL, level.ordinal).apply()
 
         val (title, text) = if (level == Level.OVER) {
-            "Daily limit crossed" to "You've spent ${formatRupees(spent)} today, ${formatRupees(spent - limit)} over your ${formatRupees(limit)} limit."
+            "Daily limit crossed" to "You've spent ${formatRupeesShort(spent)} today, ${formatRupeesShort(spent - limit)} over your ${formatRupeesShort(limit)} limit."
         } else {
-            "Close to your daily limit" to "${formatRupees(spent)} of ${formatRupees(limit)} spent today. ${formatRupees(limit - spent)} left."
+            "Close to your daily limit" to "${formatRupeesShort(spent)} of ${formatRupeesShort(limit)} spent today. ${formatRupeesShort(limit - spent)} left."
         }
         Notifier.notify(context, Notifier.Channel.LIMIT, 1001, title, text)
     }

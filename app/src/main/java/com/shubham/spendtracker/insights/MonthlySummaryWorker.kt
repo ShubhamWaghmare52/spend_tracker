@@ -9,7 +9,7 @@ import androidx.work.WorkerParameters
 import com.shubham.spendtracker.data.Budgets
 import com.shubham.spendtracker.data.Notifier
 import com.shubham.spendtracker.spendApp
-import com.shubham.spendtracker.ui.formatRupees
+import com.shubham.spendtracker.ui.formatRupeesShort
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
@@ -41,16 +41,16 @@ class MonthlySummaryWorker(context: Context, params: WorkerParameters) : Corouti
         val lines = buildList {
             if (s.previousPaise > 0) {
                 val diff = s.spentPaise - s.previousPaise
-                add("${formatRupees(abs(diff))} ${if (diff > 0) "more" else "less"} than $prevName")
+                add("${formatRupeesShort(abs(diff))} ${if (diff > 0) "more" else "less"} than $prevName")
             }
-            s.topCategory?.let { add("Most on $it (${formatRupees(s.topCategoryPaise)})") }
+            s.topCategory?.let { add("Most on $it (${formatRupeesShort(s.topCategoryPaise)})") }
             if (s.overBudget.isNotEmpty()) {
-                add("Over budget: " + s.overBudget.joinToString { (cat, over) -> "$cat by ${formatRupees(over)}" })
+                add("Over budget: " + s.overBudget.joinToString { (cat, over) -> "$cat by ${formatRupeesShort(over)}" })
             }
         }
         Notifier.notify(
             applicationContext, Notifier.Channel.SUMMARY, 3000,
-            "$name: ${formatRupees(s.spentPaise)} spent in ${s.payments} payments",
+            "$name: ${formatRupeesShort(s.spentPaise)} spent in ${s.payments} payments",
             lines.joinToString(" · "),
         )
         return Result.success()

@@ -68,12 +68,12 @@ fun BudgetsScreen(
                     Spacer(Modifier.height(16.dp))
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text(
-                            formatRupees(budgetedSpent),
+                            formatRupeesShort(budgetedSpent),
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Text(
-                            " of ${formatRupees(budgetTotal)} budgeted this month",
+                            " of ${formatRupeesShort(budgetTotal)} budgeted this month",
                             Modifier.padding(bottom = 3.dp),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -128,7 +128,7 @@ private fun BudgetRow(category: String, spent: Long, budget: Long, onClick: () -
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(category, Modifier.weight(1f), fontWeight = FontWeight.Medium)
                 Text(
-                    if (budget > 0) formatRupees(budget) else "Set budget",
+                    if (budget > 0) formatRupeesShort(budget) else "Set budget",
                     color = if (budget > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -147,9 +147,9 @@ private fun BudgetRow(category: String, spent: Long, budget: Long, onClick: () -
             }
             Text(
                 when {
-                    budget <= 0 -> "${formatRupees(spent)} spent this month"
-                    level == DailyLimit.Level.OVER -> "${formatRupees(spent)} spent · ${formatRupees(spent - budget)} over"
-                    else -> "${formatRupees(spent)} spent · ${formatRupees(budget - spent)} left"
+                    budget <= 0 -> "${formatRupeesShort(spent)} spent this month"
+                    level == DailyLimit.Level.OVER -> "${formatRupeesShort(spent)} spent · ${formatRupeesShort(spent - budget)} over"
+                    else -> "${formatRupeesShort(spent)} spent · ${formatRupeesShort(budget - spent)} left"
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = if (budget > 0 && level != DailyLimit.Level.OK) color else MaterialTheme.colorScheme.onSurfaceVariant,

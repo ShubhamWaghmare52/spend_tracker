@@ -2,7 +2,7 @@ package com.shubham.spendtracker.data
 
 import android.content.Context
 import com.shubham.spendtracker.spendApp
-import com.shubham.spendtracker.ui.formatRupees
+import com.shubham.spendtracker.ui.formatRupeesShort
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.time.LocalDate
@@ -49,10 +49,10 @@ object Budgets {
 
             val (title, text) = if (level == DailyLimit.Level.OVER) {
                 "$category budget crossed" to
-                    "${formatRupees(spent)} spent this month, ${formatRupees(spent - budget)} over your ${formatRupees(budget)} budget."
+                    "${formatRupeesShort(spent)} spent this month, ${formatRupeesShort(spent - budget)} over your ${formatRupeesShort(budget)} budget."
             } else {
                 "$category budget at ${spent * 100 / budget}%" to
-                    "${formatRupees(spent)} of ${formatRupees(budget)} spent this month. ${formatRupees(budget - spent)} left."
+                    "${formatRupeesShort(spent)} of ${formatRupeesShort(budget)} spent this month. ${formatRupeesShort(budget - spent)} left."
             }
             Notifier.notify(context, Notifier.Channel.BUDGET, 2000 + (category.hashCode() and 0xFFF), title, text)
         }

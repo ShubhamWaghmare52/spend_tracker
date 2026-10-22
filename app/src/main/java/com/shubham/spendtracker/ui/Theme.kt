@@ -2,6 +2,8 @@ package com.shubham.spendtracker.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -47,8 +49,31 @@ private val Dark = darkColorScheme(
 
 @Composable
 fun SpendTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (isSystemInDarkTheme()) Dark else Light, content = content)
+    MaterialTheme(
+        colorScheme = if (isSystemInDarkTheme()) Dark else Light,
+        typography = TabularTypography,
+        content = content,
+    )
 }
+
+// Fixed-width digits everywhere: amounts line up in lists and counting animations don't jitter.
+private val TabularTypography = Typography().let { t ->
+    fun TextStyle.tnum() = copy(fontFeatureSettings = "tnum")
+    t.copy(
+        displayLarge = t.displayLarge.tnum(), displayMedium = t.displayMedium.tnum(), displaySmall = t.displaySmall.tnum(),
+        headlineLarge = t.headlineLarge.tnum(), headlineMedium = t.headlineMedium.tnum(), headlineSmall = t.headlineSmall.tnum(),
+        titleLarge = t.titleLarge.tnum(), titleMedium = t.titleMedium.tnum(), titleSmall = t.titleSmall.tnum(),
+        bodyLarge = t.bodyLarge.tnum(), bodyMedium = t.bodyMedium.tnum(), bodySmall = t.bodySmall.tnum(),
+        labelLarge = t.labelLarge.tnum(), labelMedium = t.labelMedium.tnum(), labelSmall = t.labelSmall.tnum(),
+    )
+}
+
+/** Brand gradient shared by the hero card, launcher icon, splash and widget. */
+val BrandGradientStart = Color(0xFF2A8A72)
+val BrandGradientEnd = Color(0xFF0E4A3C)
+val BrandMint = Color(0xFF9BF2CF)
+val BrandCoral = Color(0xFFFF8A80)
+val BrandAmber = Color(0xFFFFC86B)
 
 val CreditGreen = Color(0xFF2E8B57)
 val WarnAmber = Color(0xFFE09A1A)
@@ -77,6 +102,9 @@ fun formatRupees(paise: Long): String {
     val s = inr.format(paise / 100.0)
     return if (paise % 100 == 0L) s.removeSuffix(".00") else s
 }
+
+/** Whole rupees (₹2,758) for totals, charts and alerts; exact amounts stay on individual payments. */
+fun formatRupeesShort(paise: Long): String = formatRupees(Math.round(paise / 100.0) * 100)
 
 private val dayFmt = DateTimeFormatter.ofPattern("EEE, d MMM")
 private val timeFmt = DateTimeFormatter.ofPattern("h:mm a")

@@ -71,13 +71,13 @@ fun SortScreen(txns: List<Transaction>, onSetCategory: (Transaction, String) -> 
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        "${formatRupees((startTotal - remaining).coerceAtLeast(0))} sorted",
+                        "${formatRupeesShort((startTotal - remaining).coerceAtLeast(0))} sorted",
                         Modifier.weight(1f),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        "${formatRupees(remaining)} left · ${groups.size} merchants",
+                        "${formatRupeesShort(remaining)} left · ${groups.size} merchants",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -135,7 +135,7 @@ fun SortScreen(txns: List<Transaction>, onSetCategory: (Transaction, String) -> 
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        Text(formatRupees(g.total), fontWeight = FontWeight.SemiBold)
+                        Text(formatRupeesShort(g.total), fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(12.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {

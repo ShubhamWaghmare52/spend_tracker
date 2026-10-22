@@ -1,0 +1,27 @@
+# Gradle / build output
+.gradle/
+.kotlin/
+build/
+app/build/
+captures/
+
+# Machine-specific config (contains local SDK path)
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# Built apps and signing keys — never commit these
+*.apk
+*.aab
+*.jks
+*.keystore
+keystore.properties
+
+# Local data that could contain real SMS / transactions
+*.db
+*.db-shm
+*.db-wal
+*.mp4

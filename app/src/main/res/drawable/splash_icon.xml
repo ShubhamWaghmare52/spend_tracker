@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Splash: the limit ring draws itself clockwise, then the rupee pops in. Same geometry as the launcher icon. -->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector android:width="240dp" android:height="240dp"
+            android:viewportWidth="108" android:viewportHeight="108">
+            <path android:name="track"
+                android:pathData="M27,54 A27,27 0 1,1 81,54 A27,27 0 1,1 27,54"
+                android:strokeColor="#FFFFFF" android:strokeAlpha="0" android:strokeWidth="6" />
+            <path android:name="arc"
+                android:pathData="M54,27 A27,27 0 1,1 27,54"
+                android:strokeColor="#9BF2CF" android:strokeWidth="6" android:strokeLineCap="round"
+                android:trimPathEnd="0" />
+            <group android:name="glyph" android:pivotX="54" android:pivotY="54"
+                android:scaleX="0.4" android:scaleY="0.4">
+                <path android:name="glyphPath"
+                    android:pathData="M44,41.6 H64 M44,48.7 H64 M48.1,41.6 C55.2,41.6 58.7,44.3 58.7,48.7 C58.7,53.1 55.2,55.8 48.1,55.8 H46.3 L58.1,67.6"
+                    android:strokeColor="#FFFFFF" android:strokeAlpha="0" android:strokeWidth="4"
+                    android:strokeLineCap="round" android:strokeLineJoin="round" />
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="track">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0" android:valueTo="0.22"
+                android:valueType="floatType" android:duration="250" />
+        </aapt:attr>
+    </target>
+    <target android:name="arc">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="trimPathEnd" android:valueFrom="0" android:valueTo="1"
+                android:valueType="floatType" android:duration="650" android:startOffset="80"
+                android:interpolator="@android:interpolator/fast_out_slow_in" />
+        </aapt:attr>
+    </target>
+    <target android:name="glyph">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator android:propertyName="scaleX" android:valueFrom="0.4" android:valueTo="1"
+                    android:valueType="floatType" android:duration="450" android:startOffset="220"
+                    android:interpolator="@android:anim/overshoot_interpolator" />
+                <objectAnimator android:propertyName="scaleY" android:valueFrom="0.4" android:valueTo="1"
+                    android:valueType="floatType" android:duration="450" android:startOffset="220"
+                    android:interpolator="@android:anim/overshoot_interpolator" />
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="glyphPath">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0" android:valueTo="1"
+                android:valueType="floatType" android:duration="200" android:startOffset="220" />
+        </aapt:attr>
+    </target>
+</animated-vector>

@@ -73,3 +73,7 @@ Parsing is plain Kotlin with no Android dependencies, and it is covered by unit 
 - Cash payments aren't tracked.
 - Bank SMS formats change over time, and unusual ones may be missed or misread. Tap a payment and choose **Not a payment — remove** to drop a wrong entry.
 - Transfers between your own accounts are only detected automatically when both sides share a UPI reference. Mark others as **Self transfer** by hand.
+
+## License
+
+[MIT](LICENSE)

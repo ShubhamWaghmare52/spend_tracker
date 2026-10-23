@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.shubham.spendtracker.data.Split
 import com.shubham.spendtracker.data.Transaction
 import com.shubham.spendtracker.parser.Categorizer
 import com.shubham.spendtracker.parser.TxnType
@@ -48,8 +49,8 @@ private const val RECEIVED = "Received"
 @Composable
 fun TransactionsScreen(
     txns: List<Transaction>,
-    onSetCategory: (Transaction, String) -> Unit,
-    onDelete: (Transaction) -> Unit,
+    splits: List<Split>,
+    actions: TxnActions,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -59,6 +60,8 @@ fun TransactionsScreen(
     val categories = remember(txns) {
         txns.groupingBy { it.category }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
     }
+    // Tag filters are stored as "#tag" so they can't clash with a category name.
+    val tagFilters = remember(txns) { txns.flatMap { it.tagList }.distinctBy { it.lowercase() }.sorted().map { "#$it" } }
     val filtered = remember(txns, query, filter) {
         val q = query.trim()
         txns.filter { t ->
@@ -66,9 +69,9 @@ fun TransactionsScreen(
                 ALL -> true
                 SPENT -> t.type == TxnType.DEBIT
                 RECEIVED -> t.type == TxnType.CREDIT
-                else -> t.category == filter
+                else -> if (filter.startsWith("#")) t.tagList.any { it.equals(filter.drop(1), ignoreCase = true) } else t.category == filter
             }
-            passesFilter && (q.isEmpty() || listOfNotNull(t.merchant, t.category, sourceLabel(t.sourceApp), t.upiRef)
+            passesFilter && (q.isEmpty() || listOfNotNull(t.merchant, t.category, sourceLabel(t.sourceApp), t.upiRef, t.note, t.tags)
                 .any { it.contains(q, ignoreCase = true) })
         }
     }
@@ -81,7 +84,7 @@ fun TransactionsScreen(
             TextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("Search merchant, bank, app or ref") },
+                placeholder = { Text("Search merchant, note, tag, bank or ref") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
@@ -105,11 +108,18 @@ fun TransactionsScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(vertical = 8.dp),
             ) {
-                items(listOf(ALL, SPENT, RECEIVED) + categories) { f ->
+                items(listOf(ALL, SPENT, RECEIVED) + tagFilters + categories) { f ->
                     FilterChip(
                         selected = f == filter,
                         onClick = { filter = if (f == filter) ALL else f },
-                        label = { Text(if (f in listOf(ALL, SPENT, RECEIVED)) f else "${categoryEmoji(f)} $f") },
+                        label = {
+                            Text(
+                                when {
+                                    f in listOf(ALL, SPENT, RECEIVED) || f.startsWith("#") -> f
+                                    else -> "${categoryEmoji(f)} $f"
+                                },
+                            )
+                        },
                         shape = RoundedCornerShape(50),
                     )
                 }
@@ -183,12 +193,7 @@ fun TransactionsScreen(
     }
 
     txns.find { it.id == detailId }?.let { t ->
-        TxnDetailSheet(
-            t,
-            onDismiss = { detailId = null },
-            onSetCategory = { onSetCategory(t, it) },
-            onDelete = { onDelete(t); detailId = null },
-        )
+        TxnDetailSheet(t, splits, actions, onDismiss = { detailId = null })
     }
 }
 

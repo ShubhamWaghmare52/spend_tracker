@@ -3,6 +3,7 @@ package com.shubham.spendtracker
 import android.app.Application
 import android.content.Context
 import com.shubham.spendtracker.data.AppDatabase
+import com.shubham.spendtracker.data.AppSettings
 import com.shubham.spendtracker.data.DailyLimit
 import com.shubham.spendtracker.data.TransactionRepository
 import com.shubham.spendtracker.insights.MonthlySummaryWorker
@@ -19,10 +20,11 @@ class SpendApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        AppSettings.values(this) // loads privacy mode before anything is drawn (widget included)
         MonthlySummaryWorker.schedule(this)
         // Any payment, category change or limit change redraws the home screen widget.
         appScope.launch {
-            combine(repository.transactions, DailyLimit.limit(this@SpendApp)) { _, _ -> }
+            combine(repository.transactions, DailyLimit.limit(this@SpendApp), AppSettings.values(this@SpendApp)) { _, _, _ -> }
                 .collect { SpendWidget.refresh(this@SpendApp) }
         }
     }

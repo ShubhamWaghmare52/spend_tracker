@@ -14,8 +14,11 @@ import java.time.format.DateTimeFormatter
 object CsvBackup {
     val HEADER = listOf(
         "date", "type", "amount", "merchant", "category", "account", "upi_ref",
-        "source", "source_app", "timestamp", "message",
+        "source", "source_app", "timestamp", "message", "note", "tags",
     )
+
+    // Backups made before notes and tags existed.
+    private val HEADER_V1 = HEADER.take(11)
 
     private val dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 
@@ -35,6 +38,8 @@ object CsvBackup {
                     t.sourceApp,
                     t.timestamp.toString(),
                     t.rawText,
+                    t.note.orEmpty(),
+                    t.tags.orEmpty(),
                 ).joinToString(",") { escape(it) },
             )
         }
@@ -43,9 +48,11 @@ object CsvBackup {
     /** Parses a backup. Throws [IllegalArgumentException] if the file isn't one of ours. */
     fun read(text: String): List<Transaction> {
         val rows = parse(text.removePrefix("﻿")).filter { row -> row.any { it.isNotEmpty() } }
-        require(rows.isNotEmpty() && rows.first() == HEADER) { "Not a Spend Tracker backup" }
+        val header = rows.firstOrNull()
+        require(header == HEADER || header == HEADER_V1) { "Not a Spend Tracker backup" }
+        val width = header!!.size
         return rows.drop(1).mapIndexed { i, r ->
-            require(r.size == HEADER.size) { "Row ${i + 2} has ${r.size} columns, expected ${HEADER.size}" }
+            require(r.size == width) { "Row ${i + 2} has ${r.size} columns, expected $width" }
             Transaction(
                 amountPaise = BigDecimal(r[2]).movePointRight(2).longValueExact(),
                 type = TxnType.valueOf(r[1]),
@@ -57,6 +64,8 @@ object CsvBackup {
                 upiRef = r[6].ifEmpty { null },
                 category = r[4],
                 rawText = r[10],
+                note = r.getOrNull(11)?.ifEmpty { null },
+                tags = r.getOrNull(12)?.ifEmpty { null },
             )
         }
     }

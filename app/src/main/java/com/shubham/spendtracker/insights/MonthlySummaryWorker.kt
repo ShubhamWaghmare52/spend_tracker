@@ -41,16 +41,16 @@ class MonthlySummaryWorker(context: Context, params: WorkerParameters) : Corouti
         val lines = buildList {
             if (s.previousPaise > 0) {
                 val diff = s.spentPaise - s.previousPaise
-                add("${formatRupeesShort(abs(diff))} ${if (diff > 0) "more" else "less"} than $prevName")
+                add("${formatRupeesShort(abs(diff), maskable = false)} ${if (diff > 0) "more" else "less"} than $prevName")
             }
-            s.topCategory?.let { add("Most on $it (${formatRupeesShort(s.topCategoryPaise)})") }
+            s.topCategory?.let { add("Most on $it (${formatRupeesShort(s.topCategoryPaise, maskable = false)})") }
             if (s.overBudget.isNotEmpty()) {
-                add("Over budget: " + s.overBudget.joinToString { (cat, over) -> "$cat by ${formatRupeesShort(over)}" })
+                add("Over budget: " + s.overBudget.joinToString { (cat, over) -> "$cat by ${formatRupeesShort(over, maskable = false)}" })
             }
         }
         Notifier.notify(
             applicationContext, Notifier.Channel.SUMMARY, 3000,
-            "$name: ${formatRupeesShort(s.spentPaise)} spent in ${s.payments} payments",
+            "$name: ${formatRupeesShort(s.spentPaise, maskable = false)} spent in ${s.payments} payments",
             lines.joinToString(" · "),
         )
         return Result.success()

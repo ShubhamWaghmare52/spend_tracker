@@ -10,6 +10,8 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Update
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -35,8 +37,30 @@ interface TransactionDao {
     @Query("SELECT COALESCE(SUM(amountPaise), 0) FROM transactions WHERE type = 'DEBIT' AND category != :excluded AND timestamp >= :from")
     suspend fun spentSince(from: Long, excluded: String): Long
 
-    @Query("DELETE FROM transactions WHERE source = 'SMS' AND timestamp >= :since")
+    // Rows the user has added a note, tags or a split to are kept; the re-scan merges into them.
+    @Query(
+        "DELETE FROM transactions WHERE source = 'SMS' AND timestamp >= :since AND note IS NULL AND tags IS NULL " +
+            "AND id NOT IN (SELECT txnId FROM splits)",
+    )
     suspend fun deleteSmsImportsSince(since: Long)
+
+    @Query("UPDATE transactions SET note = :note, tags = :tags WHERE id = :id")
+    suspend fun updateNote(id: Long, note: String?, tags: String?)
+
+    @Query("SELECT * FROM splits ORDER BY id")
+    fun observeSplits(): Flow<List<Split>>
+
+    @Query("SELECT * FROM splits WHERE settledAt IS NULL")
+    suspend fun outstandingSplits(): List<Split>
+
+    @Insert
+    suspend fun insertSplits(splits: List<Split>)
+
+    @Update
+    suspend fun updateSplit(split: Split)
+
+    @Query("DELETE FROM splits WHERE txnId = :txnId")
+    suspend fun deleteSplitsFor(txnId: Long)
 
     @Query("SELECT * FROM transactions ORDER BY timestamp")
     suspend fun all(): List<Transaction>
@@ -57,12 +81,28 @@ interface TransactionDao {
     suspend fun saveMerchantCategory(mc: MerchantCategory)
 }
 
-@Database(entities = [Transaction::class, MerchantCategory::class], version = 1, exportSchema = false)
+@Database(entities = [Transaction::class, MerchantCategory::class, Split::class], version = 2, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun transactions(): TransactionDao
 
     companion object {
+        /** v2: notes and tags on payments, and split expenses. SQL copied from Room's exported schema. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `note` TEXT")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `tags` TEXT")
+                db.execSQL(SPLITS_TABLE)
+                db.execSQL(SPLITS_INDEX)
+            }
+        }
+
+        const val SPLITS_TABLE = "CREATE TABLE IF NOT EXISTS `splits` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+            "`txnId` INTEGER NOT NULL, `person` TEXT NOT NULL, `sharePaise` INTEGER NOT NULL, `settledAt` INTEGER)"
+        const val SPLITS_INDEX = "CREATE INDEX IF NOT EXISTS `index_splits_txnId` ON `splits` (`txnId`)"
+
         fun create(context: Context): AppDatabase =
-            Room.databaseBuilder(context, AppDatabase::class.java, "spend.db").build()
+            Room.databaseBuilder(context, AppDatabase::class.java, "spend.db")
+                .addMigrations(MIGRATION_1_2)
+                .build()
     }
 }

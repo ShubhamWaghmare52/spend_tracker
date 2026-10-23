@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
@@ -55,8 +57,12 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.shubham.spendtracker.data.DailyLimit
+import com.shubham.spendtracker.insights.MonthFlow
 import com.shubham.spendtracker.insights.RecurringDetector
+import com.shubham.spendtracker.insights.Savings
+import java.time.YearMonth
 import com.shubham.spendtracker.insights.RecurringPayment
+import com.shubham.spendtracker.data.Split
 import com.shubham.spendtracker.data.Transaction
 import com.shubham.spendtracker.parser.Categorizer
 import com.shubham.spendtracker.parser.TxnType
@@ -107,6 +113,8 @@ fun HomeScreen(
     txns: List<Transaction>,
     playIntro: Boolean,
     onIntroStarted: () -> Unit,
+    amountsHidden: Boolean,
+    onToggleHidden: () -> Unit,
     budgets: Map<String, Long>,
     onOpenSort: () -> Unit,
     smsGranted: Boolean,
@@ -115,8 +123,9 @@ fun HomeScreen(
     onEnableNotif: () -> Unit,
     dailyLimit: Long,
     onSetLimit: (Long) -> Unit,
-    onSetCategory: (Transaction, String) -> Unit,
-    onDelete: (Transaction) -> Unit,
+    splits: List<Split>,
+    actions: TxnActions,
+    onOpenSplits: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var period by rememberSaveable { mutableStateOf(Period.WEEK) }
@@ -182,7 +191,35 @@ fun HomeScreen(
                 dailyLimit = dailyLimit,
                 fill = growth::value,
                 onEditLimit = { editingLimit = true },
+                amountsHidden = amountsHidden,
+                onToggleHidden = onToggleHidden,
             )
+        }
+
+        // Friends who owe the user from split payments
+        val owedSplits = splits.filter { it.settledAt == null }
+        if (owedSplits.isNotEmpty()) {
+            Entrance(2, playIntro) {
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenSplits),
+                ) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("🤝", style = MaterialTheme.typography.headlineSmall)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Friends owe you ${formatRupeesShort(owedSplits.sumOf { it.sharePaise })}", fontWeight = FontWeight.SemiBold)
+                            val people = owedSplits.map { it.person.lowercase() }.distinct().size
+                            Text(
+                                "$people ${if (people == 1) "person" else "people"} · tap to see who",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         // Chart, or today's list
@@ -236,6 +273,27 @@ fun HomeScreen(
                 }
             }
         }
+        }
+
+        // Savings: money in vs out over six months (Month view only)
+        if (period == Period.MONTH) {
+            val flows = remember(txns) { Savings.lastMonths(txns, YearMonth.now()) }
+            val now = flows.last()
+            if (flows.any { it.incomePaise > 0 || it.spentPaise > 0 }) {
+                Entrance(4, playIntro) {
+                    SectionCard(
+                        "Savings",
+                        subtitle = when {
+                            now.savedPaise >= 0 && now.savingsRate != null ->
+                                "Saved ${formatRupeesShort(now.savedPaise)} this month · ${now.savingsRate}% of income"
+                            now.savedPaise < 0 -> "Spent ${formatRupeesShort(-now.savedPaise)} more than came in this month"
+                            else -> "No income recorded this month yet"
+                        },
+                    ) {
+                        SavingsChart(flows, growth::value)
+                    }
+                }
+            }
         }
 
         // Recurring payments: EMIs, recharges, subscriptions
@@ -312,12 +370,7 @@ fun HomeScreen(
         PaymentListSheet(q, txns, onDismiss = { listQuery = null; selectedBar = null }, onOpen = { detailId = it.id })
     }
     txns.find { it.id == detailId }?.let { t ->
-        TxnDetailSheet(
-            t,
-            onDismiss = { detailId = null },
-            onSetCategory = { onSetCategory(t, it) },
-            onDelete = { onDelete(t); detailId = null },
-        )
+        TxnDetailSheet(t, splits, actions, onDismiss = { detailId = null })
     }
     if (editingLimit) {
         LimitDialog(dailyLimit, onDismiss = { editingLimit = false }, onSave = { onSetLimit(it); editingLimit = false })
@@ -489,6 +542,51 @@ private fun RecurringRow(r: RecurringPayment, onClick: () -> Unit) {
             Text("~${formatRupeesShort(r.typicalPaise)}", fontWeight = FontWeight.SemiBold)
             Text(due, style = MaterialTheme.typography.labelMedium, color = dueColor, fontWeight = FontWeight.Medium)
         }
+    }
+}
+
+/** Paired bars per month: income (green) beside spending (brand). */
+@Composable
+private fun SavingsChart(flows: List<MonthFlow>, growth: () -> Float) {
+    val income = CreditGreen
+    val spend = MaterialTheme.colorScheme.primary
+    val measurer = rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val max = flows.maxOf { maxOf(it.incomePaise, it.spentPaise) }.coerceAtLeast(1L)
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        Canvas(Modifier.fillMaxWidth().height(140.dp)) {
+            val labelH = 20.dp.toPx()
+            val chartH = size.height - labelH
+            val slot = size.width / flows.size
+            val barW = slot * 0.28f
+            val gap = slot * 0.06f
+            val g = growth()
+            flows.forEachIndexed { i, f ->
+                val x0 = i * slot + (slot - barW * 2 - gap) / 2
+                listOf(f.incomePaise to income, f.spentPaise to spend).forEachIndexed { j, (v, c) ->
+                    val h = (chartH * v / max * g).coerceAtLeast(if (v > 0) 3.dp.toPx() else 0f)
+                    drawRoundRect(
+                        c, Offset(x0 + j * (barW + gap), chartH - h), Size(barW, h),
+                        CornerRadius(minOf(barW / 2, 6.dp.toPx())),
+                    )
+                }
+                val m = measurer.measure(f.month.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH), labelStyle)
+                drawText(m, topLeft = Offset(i * slot + slot / 2 - m.size.width / 2, chartH + 4.dp.toPx()))
+            }
+        }
+        Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Legend(income, "Money in")
+            Legend(spend, "Spent")
+        }
+    }
+}
+
+@Composable
+private fun Legend(color: androidx.compose.ui.graphics.Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).background(color, RoundedCornerShape(50)))
+        Spacer(Modifier.width(6.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

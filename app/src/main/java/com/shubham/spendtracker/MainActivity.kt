@@ -6,6 +6,15 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
+import com.shubham.spendtracker.data.AppSettings
+import com.shubham.spendtracker.ui.LockScreen
+import com.shubham.spendtracker.ui.SettingsScreen
+import com.shubham.spendtracker.ui.SplitsScreen
+import com.shubham.spendtracker.ui.TxnActions
+import com.shubham.spendtracker.ui.WrappedScreen
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -31,7 +40,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.SideEffect
 import android.provider.Settings
 import android.widget.Toast
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -70,8 +79,33 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     @Volatile private var dataReady = false
+
+    // App lock: locked on a cold start, and again after RELOCK_AFTER_MS in the background.
+    private var locked by mutableStateOf(false)
+    private var backgroundAt = 0L
+
+    override fun onStart() {
+        super.onStart()
+        if (AppSettings.current(this).appLock && backgroundAt > 0 &&
+            SystemClock.elapsedRealtime() - backgroundAt > AppLock.RELOCK_AFTER_MS
+        ) {
+            locked = true
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        backgroundAt = SystemClock.elapsedRealtime()
+    }
+
+    /** Hide the app's preview in Recents while app lock is on (Android 13+). */
+    private fun applyRecentsPrivacy(lockOn: Boolean) {
+        if (Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!lockOn)
+    }
+
+    private fun unlock() = AppLock.authenticate(this, "Unlock Spend Tracker") { locked = false }
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -79,6 +113,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val app = spendApp
+        AppSettings.current(this).appLock.let { lockOn ->
+            locked = lockOn
+            applyRecentsPrivacy(lockOn)
+        }
 
         // Hold the splash until data is loaded (so the Overview animates in with real numbers)
         // and the ring has finished drawing.
@@ -127,6 +165,8 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 val budgets by Budgets.budgets(context).collectAsStateWithLifecycle()
+                val settings by AppSettings.values(context).collectAsStateWithLifecycle()
+                LaunchedEffect(locked) { if (locked) unlock() }
                 var page by rememberSaveable { mutableStateOf(Page.MAIN) }
                 var menuOpen by remember { mutableStateOf(false) }
                 BackHandler(enabled = page != Page.MAIN) { page = Page.MAIN }
@@ -138,8 +178,19 @@ class MainActivity : ComponentActivity() {
                     if (uri != null) app.appScope.launch { importBackup(uri) }
                 }
                 val setCategory: (Transaction, String) -> Unit = { t, c -> app.appScope.launch { app.repository.setCategory(t, c) } }
-                val delete: (Transaction) -> Unit = { t -> app.appScope.launch { app.repository.delete(t) } }
+                val splits by app.repository.splits.collectAsStateWithLifecycle(emptyList())
+                val actions = remember {
+                    TxnActions(
+                        setCategory = setCategory,
+                        delete = { t -> app.appScope.launch { app.repository.delete(t) } },
+                        saveNote = { t, note, tags -> app.appScope.launch { app.repository.saveNote(t, note, tags) } },
+                        split = { t, people -> app.appScope.launch { app.repository.split(t, people) } },
+                        removeSplits = { t -> app.appScope.launch { app.repository.removeSplits(t) } },
+                        setSettled = { sp, on -> app.appScope.launch { app.repository.setSettled(sp, on) } },
+                    )
+                }
 
+                Box(Modifier.fillMaxSize()) {
                 Scaffold(
                     topBar = {
                         TopAppBar(
@@ -148,6 +199,9 @@ class MainActivity : ComponentActivity() {
                                     when (page) {
                                         Page.SORT -> "Sort payments"
                                         Page.BUDGETS -> "Budgets"
+                                        Page.SETTINGS -> "Settings"
+                                        Page.SPLITS -> "Split expenses"
+                                        Page.WRAPPED -> "Month in review"
                                         Page.MAIN -> if (tab == 0) "Spend Tracker" else "Payments"
                                     },
                                 )
@@ -165,6 +219,9 @@ class MainActivity : ComponentActivity() {
                                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                                         DropdownMenuItem(text = { Text("Sort payments") }, onClick = { menuOpen = false; page = Page.SORT })
                                         DropdownMenuItem(text = { Text("Budgets") }, onClick = { menuOpen = false; page = Page.BUDGETS })
+                                        DropdownMenuItem(text = { Text("Split expenses") }, onClick = { menuOpen = false; page = Page.SPLITS })
+                                        DropdownMenuItem(text = { Text("Month in review ✨") }, onClick = { menuOpen = false; page = Page.WRAPPED })
+                                        DropdownMenuItem(text = { Text("Settings") }, onClick = { menuOpen = false; page = Page.SETTINGS })
                                         HorizontalDivider()
                                         DropdownMenuItem(
                                             text = { Text("Export backup (CSV)") },
@@ -212,10 +269,25 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = m,
                             )
+                            shownPage == Page.SPLITS -> SplitsScreen(txns, splits, actions, m)
+                            shownPage == Page.WRAPPED -> WrappedScreen(txns, onDone = { page = Page.MAIN }, modifier = m)
+                            shownPage == Page.SETTINGS -> SettingsScreen(
+                                settings = settings ?: AppSettings.Values(),
+                                versionName = BuildConfigVersion.name(context),
+                                onToggleLock = { on -> setAppLock(on) },
+                                onToggleHideAmounts = { on -> AppSettings.update(context) { it.copy(hideAmounts = on) } },
+                                onToggleUnusualAlerts = { on ->
+                                    AppSettings.update(context) { it.copy(unusualAlerts = on) }
+                                    if (on) askNotificationPermission()
+                                },
+                                modifier = m,
+                            )
                             shownTab == 0 -> HomeScreen(
                                 txns = txns,
                                 playIntro = !introPlayed,
                                 onIntroStarted = { introPlayed = true },
+                                amountsHidden = settings?.hideAmounts == true,
+                                onToggleHidden = { AppSettings.update(context) { it.copy(hideAmounts = !it.hideAmounts) } },
                                 budgets = budgets.orEmpty(),
                                 onOpenSort = { page = Page.SORT },
                                 smsGranted = smsGranted,
@@ -231,19 +303,34 @@ class MainActivity : ComponentActivity() {
                                     DailyLimit.setLimit(context, paise)
                                     if (paise > 0) askNotificationPermission()
                                 },
-                                onSetCategory = setCategory,
-                                onDelete = delete,
+                                splits = splits,
+                                actions = actions,
+                                onOpenSplits = { page = Page.SPLITS },
                                 modifier = m,
                             )
-                            else -> TransactionsScreen(txns, setCategory, delete, m)
+                            else -> TransactionsScreen(txns, splits, actions, m)
                         }
                     }
+                }
+                if (locked) LockScreen(onUnlock = ::unlock)
                 }
             }
         }
     }
 
-    private enum class Page { MAIN, SORT, BUDGETS }
+    /** Turning the lock on or off needs the user to authenticate first. */
+    private fun setAppLock(on: Boolean) {
+        if (on && !AppLock.available(this)) {
+            Toast.makeText(this, "Set up a screen lock or fingerprint on your phone first", Toast.LENGTH_LONG).show()
+            return
+        }
+        AppLock.authenticate(this, if (on) "Turn on app lock" else "Turn off app lock") {
+            AppSettings.update(this) { it.copy(appLock = on) }
+            applyRecentsPrivacy(on)
+        }
+    }
+
+    private enum class Page { MAIN, SORT, BUDGETS, SETTINGS, SPLITS, WRAPPED }
 
     private suspend fun exportBackup(uri: Uri) {
         val rows = spendApp.repository.allOnce()
@@ -299,4 +386,10 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+/** versionName from the package, for the Settings footer. */
+private object BuildConfigVersion {
+    fun name(context: Context): String =
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: ""
 }

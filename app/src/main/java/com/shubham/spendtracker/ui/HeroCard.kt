@@ -51,6 +51,8 @@ fun HeroCard(
     dailyLimit: Long,
     fill: () -> Float,
     onEditLimit: () -> Unit,
+    amountsHidden: Boolean,
+    onToggleHidden: () -> Unit,
 ) {
     Box(
         Modifier
@@ -60,7 +62,11 @@ fun HeroCard(
     ) {
         Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(label, style = MaterialTheme.typography.labelLarge, color = OnBrandMuted)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(label, style = MaterialTheme.typography.labelLarge, color = OnBrandMuted)
+                    Spacer(Modifier.width(6.dp))
+                    EyeToggle(amountsHidden, onToggleHidden)
+                }
                 CountUpRupees(
                     spent,
                     MaterialTheme.typography.displaySmall.copy(color = OnBrand),
@@ -151,5 +157,31 @@ private fun LimitRing(spentToday: Long, limit: Long, fill: () -> Float, onClick:
             color = OnBrandMuted,
             style = MaterialTheme.typography.labelSmall,
         )
+    }
+}
+
+/** Privacy-mode switch drawn to match the card (core icons have no eye glyph). */
+@Composable
+private fun EyeToggle(hidden: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .clickable(onClickLabel = if (hidden) "Show amounts" else "Hide amounts", onClick = onClick)
+            .padding(6.dp),
+    ) {
+        Canvas(Modifier.size(18.dp)) {
+            val w = size.width
+            val h = size.height
+            val stroke = Stroke(1.6.dp.toPx(), cap = StrokeCap.Round)
+            val eye = androidx.compose.ui.graphics.Path().apply {
+                moveTo(w * 0.05f, h * 0.5f)
+                quadraticBezierTo(w * 0.5f, h * 0.02f, w * 0.95f, h * 0.5f)
+                quadraticBezierTo(w * 0.5f, h * 0.98f, w * 0.05f, h * 0.5f)
+                close()
+            }
+            drawPath(eye, OnBrandMuted, style = stroke)
+            drawCircle(OnBrandMuted, radius = w * 0.14f, center = Offset(w / 2, h / 2))
+            if (hidden) drawLine(OnBrandMuted, Offset(w * 0.12f, h * 0.12f), Offset(w * 0.88f, h * 0.88f), stroke.width, StrokeCap.Round)
+        }
     }
 }

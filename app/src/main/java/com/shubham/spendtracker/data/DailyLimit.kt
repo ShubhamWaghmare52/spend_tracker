@@ -54,9 +54,9 @@ object DailyLimit {
         p.edit().putString(KEY_ALERT_DAY, today).putInt(KEY_ALERT_LEVEL, level.ordinal).apply()
 
         val (title, text) = if (level == Level.OVER) {
-            "Daily limit crossed" to "You've spent ${formatRupeesShort(spent)} today, ${formatRupeesShort(spent - limit)} over your ${formatRupeesShort(limit)} limit."
+            "Daily limit crossed" to "You've spent ${formatRupeesShort(spent, maskable = false)} today, ${formatRupeesShort(spent - limit, maskable = false)} over your ${formatRupeesShort(limit, maskable = false)} limit."
         } else {
-            "Close to your daily limit" to "${formatRupeesShort(spent)} of ${formatRupeesShort(limit)} spent today. ${formatRupeesShort(limit - spent)} left."
+            "Close to your daily limit" to "${formatRupeesShort(spent, maskable = false)} of ${formatRupeesShort(limit, maskable = false)} spent today. ${formatRupeesShort(limit - spent, maskable = false)} left."
         }
         Notifier.notify(context, Notifier.Channel.LIMIT, 1001, title, text)
     }

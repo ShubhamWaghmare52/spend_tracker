@@ -7,6 +7,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import java.text.NumberFormat
 import java.time.Instant
@@ -98,13 +101,24 @@ fun categoryColor(category: String): Color = categoryColors[category] ?: Color(0
 
 private val inr = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("en-IN")).apply { maximumFractionDigits = 2 }
 
-fun formatRupees(paise: Long): String {
+/**
+ * Privacy mode. Backed by Compose state, so flipping it redraws every amount on screen.
+ * Notifications pass `maskable = false`: they're the user's own alerts on their own lock screen.
+ */
+object AmountMask {
+    var hidden by mutableStateOf(false)
+    const val MASKED = "₹••••"
+}
+
+fun formatRupees(paise: Long, maskable: Boolean = true): String {
+    if (maskable && AmountMask.hidden) return AmountMask.MASKED
     val s = inr.format(paise / 100.0)
     return if (paise % 100 == 0L) s.removeSuffix(".00") else s
 }
 
 /** Whole rupees (₹2,758) for totals, charts and alerts; exact amounts stay on individual payments. */
-fun formatRupeesShort(paise: Long): String = formatRupees(Math.round(paise / 100.0) * 100)
+fun formatRupeesShort(paise: Long, maskable: Boolean = true): String =
+    formatRupees(Math.round(paise / 100.0) * 100, maskable)
 
 private val dayFmt = DateTimeFormatter.ofPattern("EEE, d MMM")
 private val timeFmt = DateTimeFormatter.ofPattern("h:mm a")

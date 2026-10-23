@@ -13,6 +13,11 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.shubham.spendtracker.MainActivity
 import com.shubham.spendtracker.R
+import com.shubham.spendtracker.insights.Unusual
+import com.shubham.spendtracker.insights.UnusualPayments
+import com.shubham.spendtracker.spendApp
+import com.shubham.spendtracker.ui.formatRupeesShort
+import com.shubham.spendtracker.ui.formatTime
 
 /** All app notifications. Each kind has its own channel so it can be muted separately. */
 object Notifier {
@@ -20,6 +25,7 @@ object Notifier {
         LIMIT("daily_limit", "Daily limit alerts", NotificationManager.IMPORTANCE_HIGH),
         BUDGET("budgets", "Budget alerts", NotificationManager.IMPORTANCE_HIGH),
         SUMMARY("monthly_summary", "Monthly summary", NotificationManager.IMPORTANCE_DEFAULT),
+        UNUSUAL("unusual_payments", "Unusual payments", NotificationManager.IMPORTANCE_HIGH),
     }
 
     fun notify(context: Context, channel: Channel, id: Int, title: String, text: String) {
@@ -45,9 +51,29 @@ object Notifier {
         }
     }
 
-    /** Run after any new payment is recorded. */
-    suspend fun afterNewPayment(context: Context) {
+    /** Run after live payments are recorded (not after the inbox backfill). */
+    suspend fun afterNewPayment(context: Context, added: List<Transaction>) {
         DailyLimit.checkAndNotify(context)
         Budgets.checkAndNotify(context)
+        if (added.isNotEmpty() && AppSettings.current(context).unusualAlerts) {
+            val history = context.spendApp.repository.allOnce()
+            added.forEach { t -> UnusualPayments.check(t, history)?.let { notifyUnusual(context, t, it) } }
+        }
+    }
+
+    private fun notifyUnusual(context: Context, t: Transaction, why: Unusual) {
+        val amount = formatRupeesShort(t.amountPaise, maskable = false)
+        val who = t.merchant ?: "an unknown payee"
+        val reason = when (why) {
+            is Unusual.BigForMerchant ->
+                "That's about ${why.times}× your usual ${formatRupeesShort(why.typicalPaise, maskable = false)} there."
+            Unusual.LargeToNewPayee -> "It's your first payment to them."
+            is Unusual.LateNight -> "It was made at ${formatTime(t.timestamp)}."
+        }
+        notify(
+            context, Channel.UNUSUAL, 4000 + (t.id % 1000).toInt(),
+            "Unusual payment: $amount to $who",
+            "$reason If this wasn't you, call your bank right away.",
+        )
     }
 }

@@ -21,6 +21,12 @@ One payment usually produces both an SMS and a notification. They are merged int
 - **Home screen widget**: today's spending against your daily limit, shown as a ring that turns amber at 80% and coral when you're over.
 - **Sort payments**: works through uncategorised spending merchant by merchant, biggest first. People are detected and suggested as Transfers.
 - **CSV backup**: export to a spreadsheet-friendly file and import it later, skipping payments that are already there.
+- **Split expenses**: split a payment with friends and track who owes you. Their UPI payback is matched by name and amount and ticked off automatically.
+- **Tags and notes**: tag payments, e.g. "Goa trip", then filter and search by tag or note.
+- **Savings view**: income against spending for the last six months, with your savings rate.
+- **Month in review**: a swipeable, story-style recap of your month.
+- **Unusual payment alerts**: a notification when a payment is much bigger than usual for that merchant, a large first payment to someone new, or late at night.
+- **App lock and privacy mode**: fingerprint, face or screen-lock protection, and a one-tap switch that shows every amount as ₹••••.
 - **Self-transfer detection**: a debit in one of your accounts and a credit in another with the same UPI reference are marked automatically and left out of totals.
 - **Auto-categorisation**: Food, Groceries, Shopping, Travel, Bills, and more.
 - **Search and filters** on the Payments tab.
@@ -38,6 +44,10 @@ One payment usually produces both an SMS and a notification. They are merged int
 - Indian bank SMS formats. Parsers cover HDFC, SBI, ICICI, Axis, Kotak, Bank of Baroda, Jio Payments Bank, card spends and UPI apps.
 
 iOS isn't supported, because iOS doesn't allow apps to read SMS or other apps' notifications.
+
+## Download
+
+Each version tag (`v*`) builds a ready-to-install APK on the repository's **Releases** page via GitHub Actions. CI release builds are signed with a throwaway key, so uninstall a locally built copy before installing one from Releases (and vice versa).
 
 ## Build and install
 
@@ -79,6 +89,7 @@ Parsing, recurring-payment detection, the monthly summary and the CSV format are
 ## Limitations
 
 - Cash payments aren't tracked.
+- The CSV backup covers payments, categories, notes and tags. Split records aren't included yet.
 - Bank SMS formats change over time, and unusual ones may be missed or misread. Tap a payment and choose **Not a payment — remove** to drop a wrong entry.
 - Transfers between your own accounts are only detected automatically when both sides share a UPI reference. Mark others as **Self transfer** by hand.
 

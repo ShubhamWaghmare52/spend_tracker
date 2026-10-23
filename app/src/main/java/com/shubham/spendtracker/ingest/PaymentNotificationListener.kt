@@ -25,8 +25,8 @@ class PaymentNotificationListener : NotificationListenerService() {
         val parsed = NotificationParser.parse(sbn.packageName, title, text, sbn.postTime) ?: return
         val app = spendApp
         app.appScope.launch {
-            app.repository.ingest(parsed)
-            Notifier.afterNewPayment(app)
+            val added = listOfNotNull(app.repository.ingest(parsed))
+            Notifier.afterNewPayment(app, added)
         }
     }
 

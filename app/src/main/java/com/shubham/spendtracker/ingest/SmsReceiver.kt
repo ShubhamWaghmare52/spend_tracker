@@ -21,12 +21,12 @@ class SmsReceiver : BroadcastReceiver() {
         val messages = parts.groupBy { it.originatingAddress.orEmpty() }
         app.appScope.launch {
             try {
-                for ((sender, pieces) in messages) {
+                val added = messages.mapNotNull { (sender, pieces) ->
                     val body = pieces.joinToString("") { it.messageBody.orEmpty() }
                     val ts = pieces.first().timestampMillis
                     SmsParser.parse(sender, body, ts)?.let { app.repository.ingest(it) }
                 }
-                Notifier.afterNewPayment(context)
+                Notifier.afterNewPayment(context, added)
             } finally {
                 pending.finish()
             }

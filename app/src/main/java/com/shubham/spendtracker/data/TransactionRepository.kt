@@ -3,6 +3,7 @@ package com.shubham.spendtracker.data
 import com.shubham.spendtracker.parser.Categorizer
 import com.shubham.spendtracker.parser.Deduper
 import com.shubham.spendtracker.parser.ParsedTxn
+import com.shubham.spendtracker.parser.TxnType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -12,22 +13,50 @@ class TransactionRepository(private val dao: TransactionDao) {
     private val ingestLock = Mutex()
 
     val transactions: Flow<List<Transaction>> = dao.observeAll()
+    val splits: Flow<List<Split>> = dao.observeSplits()
 
-    suspend fun ingest(parsed: ParsedTxn) = ingestLock.withLock {
+    /** Stores a parsed payment. Returns the new row, or null when it was merged into an existing one. */
+    suspend fun ingest(parsed: ParsedTxn): Transaction? = ingestLock.withLock {
         val candidates = dao.candidates(
             from = parsed.timestamp - Deduper.WINDOW_MS,
             to = parsed.timestamp + Deduper.WINDOW_MS,
             upiRef = parsed.upiRef,
         )
         val dup = Deduper.findDuplicate(parsed, candidates)
-        if (dup != null) {
+        val inserted = if (dup != null) {
             val merged = Deduper.merge(dup, parsed)
             if (merged != dup) dao.update(merged)
+            null
         } else {
             insertNew(parsed)
         }
         linkSelfTransfer(parsed.upiRef)
+        if (inserted?.type == TxnType.CREDIT) settleFromCredit(inserted)
+        inserted
     }
+
+    /** A friend paying back by UPI settles their outstanding share(s) automatically. */
+    private suspend fun settleFromCredit(credit: Transaction) {
+        SplitMatcher.settledBy(credit, dao.outstandingSplits())
+            .forEach { dao.updateSplit(it.copy(settledAt = credit.timestamp)) }
+    }
+
+    suspend fun saveNote(txn: Transaction, note: String?, tags: String?) =
+        dao.updateNote(txn.id, note?.trim()?.ifEmpty { null }, Tags.join(Tags.parse(tags)))
+
+    /** Splits [txn] equally between the user and [people]; any rounding remainder stays with the user. */
+    suspend fun split(txn: Transaction, people: List<String>) {
+        val names = people.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
+        dao.deleteSplitsFor(txn.id)
+        if (names.isEmpty()) return
+        val share = txn.amountPaise / (names.size + 1)
+        dao.insertSplits(names.map { Split(txnId = txn.id, person = it, sharePaise = share) })
+    }
+
+    suspend fun removeSplits(txn: Transaction) = dao.deleteSplitsFor(txn.id)
+
+    suspend fun setSettled(split: Split, settled: Boolean) =
+        dao.updateSplit(split.copy(settledAt = if (settled) System.currentTimeMillis() else null))
 
     /** Debit in one of the user's accounts + credit in another with the same UPI ref → both are self transfers. */
     private suspend fun linkSelfTransfer(upiRef: String?) {
@@ -37,9 +66,9 @@ class TransactionRepository(private val dao: TransactionDao) {
             .forEach { dao.update(it.copy(category = Categorizer.SELF)) }
     }
 
-    private suspend fun insertNew(parsed: ParsedTxn) {
+    private suspend fun insertNew(parsed: ParsedTxn): Transaction {
         val remembered = Categorizer.merchantKey(parsed.merchant)?.let { dao.merchantCategory(it) }
-        dao.insert(
+        val row =
             Transaction(
                 amountPaise = parsed.amountPaise,
                 type = parsed.type,
@@ -51,8 +80,8 @@ class TransactionRepository(private val dao: TransactionDao) {
                 upiRef = parsed.upiRef,
                 category = remembered ?: Categorizer.categorize(parsed.type, parsed.merchant, parsed.rawText),
                 rawText = parsed.rawText,
-            ),
-        )
+            )
+        return row.copy(id = dao.insert(row))
     }
 
     /** Re-categorizes this payment and every past/future payment to the same merchant. */
@@ -66,7 +95,10 @@ class TransactionRepository(private val dao: TransactionDao) {
         }
     }
 
-    suspend fun delete(txn: Transaction) = dao.delete(txn)
+    suspend fun delete(txn: Transaction) {
+        dao.deleteSplitsFor(txn.id)
+        dao.delete(txn)
+    }
 
     /** Money spent since [from], not counting transfers between the user's own accounts. */
     suspend fun spentSince(from: Long): Long = dao.spentSince(from, Categorizer.SELF)

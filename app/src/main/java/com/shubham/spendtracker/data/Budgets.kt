@@ -49,10 +49,10 @@ object Budgets {
 
             val (title, text) = if (level == DailyLimit.Level.OVER) {
                 "$category budget crossed" to
-                    "${formatRupeesShort(spent)} spent this month, ${formatRupeesShort(spent - budget)} over your ${formatRupeesShort(budget)} budget."
+                    "${formatRupeesShort(spent, maskable = false)} spent this month, ${formatRupeesShort(spent - budget, maskable = false)} over your ${formatRupeesShort(budget, maskable = false)} budget."
             } else {
                 "$category budget at ${spent * 100 / budget}%" to
-                    "${formatRupeesShort(spent)} of ${formatRupeesShort(budget)} spent this month. ${formatRupeesShort(budget - spent)} left."
+                    "${formatRupeesShort(spent, maskable = false)} of ${formatRupeesShort(budget, maskable = false)} spent this month. ${formatRupeesShort(budget - spent, maskable = false)} left."
             }
             Notifier.notify(context, Notifier.Channel.BUDGET, 2000 + (category.hashCode() and 0xFFF), title, text)
         }

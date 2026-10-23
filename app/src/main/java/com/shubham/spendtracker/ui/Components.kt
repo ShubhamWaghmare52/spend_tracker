@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,6 +55,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedButton
+import com.shubham.spendtracker.data.Split
+import com.shubham.spendtracker.data.Tags
 import com.shubham.spendtracker.data.Transaction
 import com.shubham.spendtracker.parser.Categorizer
 import com.shubham.spendtracker.parser.TxnType
@@ -147,6 +153,7 @@ fun TxnRow(t: Transaction, onClick: () -> Unit, showDay: Boolean = false) {
                     append(" · ")
                     if (showDay) append(relativeDay(t.timestamp)).append(", ")
                     append(formatTime(t.timestamp))
+                    t.tagList.firstOrNull()?.let { append(" · #").append(it) }
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -252,9 +259,9 @@ fun PaymentListSheet(query: PaymentQuery, txns: List<Transaction>, onDismiss: ()
 @Composable
 fun TxnDetailSheet(
     txn: Transaction,
+    splits: List<Split>,
+    actions: TxnActions,
     onDismiss: () -> Unit,
-    onSetCategory: (String) -> Unit,
-    onDelete: () -> Unit,
 ) {
     var showRaw by remember { mutableStateOf(false) }
     val credit = txn.type == TxnType.CREDIT
@@ -271,6 +278,7 @@ fun TxnDetailSheet(
         Column(
             Modifier
                 .fillMaxWidth()
+                .imePadding() // keep the note/tags fields above the keyboard
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp),
@@ -324,11 +332,19 @@ fun TxnDetailSheet(
                     Categorizer.all.forEach { cat ->
                         FilterChip(
                             selected = cat == txn.category,
-                            onClick = { if (cat != txn.category) onSetCategory(cat) },
+                            onClick = { if (cat != txn.category) actions.setCategory(txn, cat) },
                             label = { Text("${categoryEmoji(cat)} $cat") },
                         )
                     }
                 }
+            }
+
+            Spacer(Modifier.height(24.dp))
+            NoteAndTags(txn, actions)
+
+            if (txn.type == TxnType.DEBIT) {
+                Spacer(Modifier.height(24.dp))
+                SplitSection(txn, splits.filter { it.txnId == txn.id }, actions)
             }
 
             Spacer(Modifier.height(16.dp))
@@ -345,9 +361,138 @@ fun TxnDetailSheet(
                 }
             }
             TextButton(
-                onClick = onDelete,
+                onClick = { actions.delete(txn); onDismiss() },
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
             ) { Text("Not a payment — remove") }
         }
     }
+}
+
+/** Everything the payment detail sheet can change. */
+class TxnActions(
+    val setCategory: (Transaction, String) -> Unit,
+    val delete: (Transaction) -> Unit,
+    val saveNote: (Transaction, String?, String?) -> Unit,
+    val split: (Transaction, List<String>) -> Unit,
+    val removeSplits: (Transaction) -> Unit,
+    val setSettled: (Split, Boolean) -> Unit,
+)
+
+@Composable
+private fun SectionTitle(title: String, subtitle: String? = null) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        Spacer(Modifier.height(10.dp))
+    }
+}
+
+@Composable
+private fun NoteAndTags(txn: Transaction, actions: TxnActions) {
+    var note by remember(txn.id) { mutableStateOf(txn.note.orEmpty()) }
+    var tags by remember(txn.id) { mutableStateOf(txn.tags.orEmpty().replace(",", ", ")) }
+    val changed = note.trim() != txn.note.orEmpty() || Tags.join(Tags.parse(tags)) != txn.tags
+    Column(Modifier.fillMaxWidth()) {
+        SectionTitle("Note and tags", "Tags group payments across categories, e.g. a trip or an event")
+        OutlinedTextField(
+            value = note,
+            onValueChange = { note = it.take(200) },
+            label = { Text("Note") },
+            modifier = Modifier.fillMaxWidth(),
+            maxLines = 3,
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = tags,
+            onValueChange = { tags = it.take(120) },
+            label = { Text("Tags") },
+            placeholder = { Text("Goa trip, Work") },
+            supportingText = { Text("Separate with commas") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (changed) {
+            Button(onClick = { actions.saveNote(txn, note, tags) }, modifier = Modifier.align(Alignment.End)) { Text("Save") }
+        }
+    }
+}
+
+@Composable
+private fun SplitSection(txn: Transaction, splits: List<Split>, actions: TxnActions) {
+    var asking by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth()) {
+        if (splits.isEmpty()) {
+            SectionTitle("Split", "Paid for friends? Track who owes you. Their UPI payback is matched automatically.")
+            OutlinedButton(onClick = { asking = true }) { Text("Split this payment") }
+        } else {
+            val owed = splits.filter { it.settledAt == null }.sumOf { it.sharePaise }
+            SectionTitle(
+                "Split",
+                if (owed > 0) "${formatRupees(owed)} still to come back" else "Everyone has paid back 🎉",
+            )
+            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
+                Column {
+                    splits.forEachIndexed { i, sp ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 12.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            MerchantAvatar(sp.person, Categorizer.TRANSFERS, 36.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(sp.person, fontWeight = FontWeight.Medium)
+                                Text(
+                                    if (sp.settledAt != null) "Paid back ${relativeDay(sp.settledAt)}" else "Owes ${formatRupees(sp.sharePaise)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (sp.settledAt != null) CreditGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Checkbox(checked = sp.settledAt != null, onCheckedChange = { actions.setSettled(sp, it) })
+                        }
+                        if (i < splits.lastIndex) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                }
+            }
+            TextButton(onClick = { asking = true }) { Text("Change split") }
+        }
+    }
+    if (asking) {
+        SplitDialog(
+            txn, splits.map { it.person },
+            onDismiss = { asking = false },
+            onSave = { people -> if (people.isEmpty()) actions.removeSplits(txn) else actions.split(txn, people); asking = false },
+        )
+    }
+}
+
+@Composable
+private fun SplitDialog(txn: Transaction, current: List<String>, onDismiss: () -> Unit, onSave: (List<String>) -> Unit) {
+    var names by remember { mutableStateOf(current.joinToString(", ")) }
+    val people = names.split(',').map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
+    val share = if (people.isEmpty()) 0 else txn.amountPaise / (people.size + 1)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Split ${formatRupees(txn.amountPaise)}") },
+        text = {
+            Column {
+                Text("Split equally between you and:", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = names,
+                    onValueChange = { names = it },
+                    placeholder = { Text("Rahul, Amit") },
+                    supportingText = { Text("Names, separated by commas") },
+                    singleLine = true,
+                )
+                if (people.isNotEmpty()) {
+                    Text(
+                        "${formatRupees(share)} each from ${people.size} ${if (people.size == 1) "person" else "people"} · your share ${formatRupees(txn.amountPaise - share * people.size)}",
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(people) }, enabled = people.isNotEmpty() || current.isNotEmpty()) { Text(if (people.isEmpty()) "Remove split" else "Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }

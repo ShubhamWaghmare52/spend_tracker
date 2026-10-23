@@ -30,7 +30,8 @@ object MonthlySummary {
         }
         val spent = spendIn(month)
         val byCategory = spent.groupBy { it.category }.mapValues { (_, v) -> v.sumOf { it.amountPaise } }
-        val top = byCategory.maxByOrNull { it.value }
+        // "Other" just means uncategorised, so it only headlines when nothing else was spent on.
+        val top = byCategory.filterKeys { it != Categorizer.OTHER }.maxByOrNull { it.value } ?: byCategory.maxByOrNull { it.value }
         return MonthSummary(
             month = month,
             spentPaise = spent.sumOf { it.amountPaise },

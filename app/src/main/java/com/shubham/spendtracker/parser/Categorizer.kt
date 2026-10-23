@@ -35,11 +35,14 @@ object Categorizer {
     private val personVpa = Regex("""^(\d{10}|[a-z]+[._]?[a-z]*\d{0,4})@(ybl|ibl|axl|okaxis|okhdfcbank|okicici|oksbi|paytm|apl|upi)$""")
 
     // Paying the card bill from the bank: the card purchases were already counted when made.
+    // Paying the card *bill*: "bill"/"dues" next to the card, or money sent "towards" the card.
+    // A bare "payment ... on your credit card at X" is a purchase, so "payment" alone doesn't count.
     private val cardBill = Regex(
-        """(credit card|\bcc\b)[^.]{0,60}\b(bill|payment|dues)\b|\b(bill|payment|dues)\b[^.]{0,60}(credit card|\bcc\b)""",
+        """(credit card|\bcc\b)[^.]{0,30}\b(bill|dues)\b|\b(bill|dues)\b[^.]{0,30}(credit card|\bcc\b)|""" +
+            """\btowards\b[^.]{0,40}(credit card|\bcc\b)""",
         RegexOption.IGNORE_CASE,
     )
-    private val cardSpend = Regex("""\bspent\b""", RegexOption.IGNORE_CASE)
+    private val cardSpend = Regex("""\b(spent|purchase|using|used)\b""", RegexOption.IGNORE_CASE)
 
     /** A bank debit that pays off a credit card bill (counted as moving money, not spending). */
     fun isCardBillPayment(type: TxnType, rawText: String): Boolean =

@@ -16,6 +16,11 @@ class MonthlySummaryTest {
         timestamp = LocalDate.parse(date).atTime(12, 0).toInstant(ZoneOffset.UTC).toEpochMilli(),
     )
 
+    @Test fun otherDoesNotHeadlineWhenRealCategoriesExist() {
+        val txns = listOf(t("2026-10-02", 9_000, "Other"), t("2026-10-03", 500, "Food"))
+        assertEquals("Food", MonthlySummary.summarize(txns, YearMonth.of(2026, 10), emptyMap(), ZoneOffset.UTC).topCategory)
+    }
+
     @Test fun summarisesMonthAgainstPreviousAndBudgets() {
         val txns = listOf(
             t("2026-09-10", 1000, "Food"),

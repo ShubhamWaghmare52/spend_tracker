@@ -5,6 +5,8 @@ import com.shubham.spendtracker.data.Transaction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class SmsParserTest {
@@ -140,6 +142,17 @@ class SmsParserTest {
         // A purchase on the card is still spending.
         val spend = sms("Rs.1,200 spent on your SBI Credit Card ending 9876 at AMAZON on 12/01/26.", "VK-SBICRD")!!
         assertEquals("Shopping", Categorizer.categorize(spend.type, spend.merchant, spend.rawText))
+    }
+
+    @Test fun cardPurchasesWorded_payment_onYourCard_areStillSpending() {
+        for (body in listOf(
+            "Rs.1,500 debited: Payment of INR 1,500.00 on your HDFC Bank Credit Card XX1234 at RELIANCE DIGITAL is successful.",
+            "Thank you for using your ICICI Credit Card for Rs 350 at PVR CINEMAS. Debited on 12-Oct-26.",
+        )) {
+            assertFalse(body, Categorizer.isCardBillPayment(TxnType.DEBIT, body))
+        }
+        assertTrue(Categorizer.isCardBillPayment(TxnType.DEBIT, "Rs 8,000 debited from A/c XX4321 towards your Credit Card ending 1234"))
+        assertTrue(Categorizer.isCardBillPayment(TxnType.DEBIT, "INR 3,000 debited for HDFC credit card dues via NetBanking"))
     }
 
     @Test fun futureRefundsAreIgnoredUntilTheyArrive() {

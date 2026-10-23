@@ -7,6 +7,8 @@ object SplitMatcher {
     // UPI amounts can be rounded by a rupee either way.
     private const val TOLERANCE_PAISE = 100L
 
+    private val titles = setOf("mr", "mrs", "ms", "miss", "dr", "prof", "shri", "smt", "sri")
+
     private fun tokens(s: String) =
         s.substringBefore('@').lowercase().split(Regex("[^a-z]+")).filter { it.length >= 2 }
 
@@ -17,7 +19,8 @@ object SplitMatcher {
      */
     fun samePerson(person: String, payer: String?): Boolean {
         if (payer.isNullOrBlank()) return false
-        val first = tokens(person).firstOrNull() ?: return false
+        // Skip titles: "Dr. Sharma" must match on "sharma", not on every doctor who pays.
+        val first = tokens(person).firstOrNull { it !in titles } ?: return false
         return first in tokens(payer)
     }
 

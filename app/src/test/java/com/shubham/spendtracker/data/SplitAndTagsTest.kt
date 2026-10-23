@@ -32,6 +32,10 @@ class SplitAndTagsTest {
         assertFalse(SplitMatcher.samePerson("Rahul Sharma", "AMIT SHARMA"))
         assertFalse(SplitMatcher.samePerson("Rahul Sharma", "SHARMA SWEETS"))
         assertTrue(SplitMatcher.samePerson("Om", "OM PRAKASH JOSHI"))
+        // Titles are skipped
+        assertFalse(SplitMatcher.samePerson("Dr. Sharma", "DR AMIT VERMA"))
+        assertTrue(SplitMatcher.samePerson("Dr. Sharma", "SHARMA RAJESH"))
+        assertTrue(SplitMatcher.samePerson("Mr Rahul", "rahul.k@okaxis"))
     }
 
     @Test fun exactShareSettlesThatShare() {

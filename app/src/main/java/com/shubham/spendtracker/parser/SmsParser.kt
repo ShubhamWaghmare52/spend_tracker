@@ -3,10 +3,17 @@ package com.shubham.spendtracker.parser
 /** Parses Indian bank transaction alerts (UPI, card, netbanking, ATM). */
 object SmsParser {
     private val ignore = Regex(
-        """\b(otp|one time password|verification code|will be debited|is due|due on|due date|minimum amount|""" +
+        """\b(otp|one time password|verification code|will be debited|will be credited|to be credited|will be refunded|is due|due on|due date|minimum amount|""" +
             """requested|request|collect|failed|declined|unsuccessful|pre-approved|apply now|offer|emi of|""" +
             """has been registered|mandate|will be processed|ensure sufficient|penal|voucher|claim|unlock|""" +
             """congrat\w*|lifetime free|get card|beneficiary)\b""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    // The card company confirming a bill payment: the money left the user's bank (already
+    // recorded there) and moved to their card. It's neither income nor new spending.
+    private val cardBillAck = Regex(
+        """\breceived\b[^.]{0,40}\btowards\b[^.]{0,30}\b(credit card|card (account|ending)|cc)\b""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -34,7 +41,7 @@ object SmsParser {
     fun parse(sender: String, body: String, timestamp: Long): ParsedTxn? {
         val text = body.replace(Regex("""\s+"""), " ").trim()
         if (phoneSender.matches(sender.trim()) || promoSender.containsMatchIn(sender.trim())) return null
-        if (ignore.containsMatchIn(text) || !bankContext.containsMatchIn(text)) return null
+        if (ignore.containsMatchIn(text) || cardBillAck.containsMatchIn(text) || !bankContext.containsMatchIn(text)) return null
 
         val type = ParseUtils.earliest(text, TxnType.DEBIT to debit, TxnType.CREDIT to credit) ?: return null
         val amount = ParseUtils.findAmountPaise(text) ?: return null

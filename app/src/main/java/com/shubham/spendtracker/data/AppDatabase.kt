@@ -50,6 +50,9 @@ interface TransactionDao {
     @Query("SELECT * FROM splits ORDER BY id")
     fun observeSplits(): Flow<List<Split>>
 
+    @Query("SELECT * FROM splits WHERE txnId = :txnId")
+    suspend fun splitsFor(txnId: Long): List<Split>
+
     @Query("SELECT * FROM splits WHERE settledAt IS NULL")
     suspend fun outstandingSplits(): List<Split>
 

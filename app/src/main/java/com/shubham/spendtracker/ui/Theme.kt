@@ -89,6 +89,10 @@ private val isLightTheme: Boolean
 val CreditGreen: Color
     @Composable @ReadOnlyComposable get() = if (isLightTheme) Color(0xFF1E7A46) else Color(0xFF5BC88E)
 
+/** Coral for "spent" bars: the pastel reads on dark cards, a deeper shade keeps 3:1+ on white. */
+val SpendCoral: Color
+    @Composable @ReadOnlyComposable get() = if (isLightTheme) Color(0xFFD35A3E) else BrandCoral
+
 val WarnAmber: Color
     @Composable @ReadOnlyComposable get() = if (isLightTheme) Color(0xFF9A5B00) else Color(0xFFE09A1A)
 
@@ -146,9 +150,12 @@ fun relativeDay(ts: Long): String {
     return when (d) {
         today -> "Today"
         today.minusDays(1) -> "Yesterday"
-        else -> d.format(dayFmt)
+        // Older years show the year, so "20 Oct" this year and last year never look the same.
+        else -> if (d.year == today.year) d.format(dayFmt) else d.format(dayYearFmt)
     }
 }
+
+private val dayYearFmt = DateTimeFormatter.ofPattern("EEE, d MMM yyyy")
 
 private val categoryEmojis = mapOf(
     "Food" to "🍔", "Groceries" to "🛒", "Shopping" to "🛍️", "Travel" to "🚕", "Fuel" to "⛽",

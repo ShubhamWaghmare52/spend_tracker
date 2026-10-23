@@ -549,7 +549,7 @@ private fun RecurringRow(r: RecurringPayment, onClick: () -> Unit) {
 @Composable
 private fun SavingsChart(flows: List<MonthFlow>, growth: () -> Float) {
     val income = CreditGreen
-    val spend = BrandCoral // warm against the green "money in" so the pair reads at a glance
+    val spend = SpendCoral // warm against the green "money in" so the pair reads at a glance
     val measurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
     val max = flows.maxOf { maxOf(it.incomePaise, it.spentPaise) }.coerceAtLeast(1L)
@@ -644,6 +644,22 @@ private fun SetupCard(smsGranted: Boolean, notifEnabled: Boolean, onGrantSms: ()
             )
             if (!smsGranted) Button(onClick = onGrantSms) { Text("Allow SMS access") }
             if (!notifEnabled) OutlinedButton(onClick = onEnableNotif) { Text("Allow notification access") }
+            // Android 13+ greys these out for apps installed from a file until the user allows it.
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                Text(
+                    "Option greyed out? Open App info, tap ⋮ (top right), choose \"Allow restricted settings\", then come back and try again.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                TextButton(onClick = {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            android.net.Uri.fromParts("package", context.packageName, null),
+                        ),
+                    )
+                }) { Text("Open App info") }
+            }
         }
     }
 }

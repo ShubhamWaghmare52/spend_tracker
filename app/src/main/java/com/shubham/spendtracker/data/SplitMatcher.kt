@@ -8,14 +8,17 @@ object SplitMatcher {
     private const val TOLERANCE_PAISE = 100L
 
     private fun tokens(s: String) =
-        s.substringBefore('@').lowercase().split(Regex("[^a-z]+")).filter { it.length >= 3 }.toSet()
+        s.substringBefore('@').lowercase().split(Regex("[^a-z]+")).filter { it.length >= 2 }
 
-    /** "Rahul" matches "RAHUL K SHARMA", "rahul.k@okaxis" and "Rahul Sharma". */
+    /**
+     * Matches on the friend's first name: "Rahul" or "Rahul Sharma" match "RAHUL K SHARMA" and
+     * "rahul.k@okaxis", but a shared surname alone ("Amit Sharma", "Sharma Sweets") doesn't.
+     * Short names like "Om" work too.
+     */
     fun samePerson(person: String, payer: String?): Boolean {
         if (payer.isNullOrBlank()) return false
-        val p = tokens(person)
-        val q = tokens(payer)
-        return p.isNotEmpty() && p.any { it in q }
+        val first = tokens(person).firstOrNull() ?: return false
+        return first in tokens(payer)
     }
 
     /**

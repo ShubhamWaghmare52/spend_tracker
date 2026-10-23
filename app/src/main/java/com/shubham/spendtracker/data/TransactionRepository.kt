@@ -47,10 +47,12 @@ class TransactionRepository(private val dao: TransactionDao) {
     /** Splits [txn] equally between the user and [people]; any rounding remainder stays with the user. */
     suspend fun split(txn: Transaction, people: List<String>) {
         val names = people.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
+        // Friends who already paid back stay paid back when the split is edited.
+        val paidBack = dao.splitsFor(txn.id).filter { it.settledAt != null }.associate { it.person.lowercase() to it.settledAt }
         dao.deleteSplitsFor(txn.id)
         if (names.isEmpty()) return
         val share = txn.amountPaise / (names.size + 1)
-        dao.insertSplits(names.map { Split(txnId = txn.id, person = it, sharePaise = share) })
+        dao.insertSplits(names.map { Split(txnId = txn.id, person = it, sharePaise = share, settledAt = paidBack[it.lowercase()]) })
     }
 
     suspend fun removeSplits(txn: Transaction) = dao.deleteSplitsFor(txn.id)

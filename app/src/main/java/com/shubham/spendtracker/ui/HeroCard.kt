@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -165,6 +166,7 @@ private fun LimitRing(spentToday: Long, limit: Long, fill: () -> Float, onClick:
 private fun EyeToggle(hidden: Boolean, onClick: () -> Unit) {
     Box(
         Modifier
+            .minimumInteractiveComponentSize() // 48dp tap target around the small glyph
             .clip(RoundedCornerShape(50))
             .clickable(onClickLabel = if (hidden) "Show amounts" else "Hide amounts", onClick = onClick)
             .padding(6.dp),

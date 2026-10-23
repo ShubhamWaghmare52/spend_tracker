@@ -176,8 +176,9 @@ class MainActivity : FragmentActivity() {
             }
             // Status/navigation bar icons follow the app's theme, not the phone's, so they stay
             // readable when the app is forced light on a dark phone (or the other way round).
-            DisposableEffect(dark) {
-                barsDark = dark
+            // The lock screen is a full-bleed dark gradient, so it always needs light icons.
+            DisposableEffect(dark, locked) {
+                barsDark = dark || locked
                 applyBars()
                 onDispose {}
             }
@@ -424,21 +425,31 @@ class MainActivity : FragmentActivity() {
         private const val SPLASH_EXIT_MS = 320L
 
         // Bump when the SMS parser improves so existing imports are re-parsed once.
-        private const val PARSER_VERSION = 6
+        private const val PARSER_VERSION = 7
 
         fun hasSms(context: Context) =
             ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+
+        // One backfill at a time per process (the activity can be recreated while one is running).
+        private val backfillRunning = java.util.concurrent.atomic.AtomicBoolean(false)
 
         /** Imports the last 90 days of bank SMS on first grant, and again after a parser upgrade. */
         fun backfillOnce(context: Context) {
             val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             val done = prefs.getInt(KEY_PARSER_VERSION, if (prefs.getBoolean("backfilled", false)) 1 else 0)
-            if (done >= PARSER_VERSION) return
-            prefs.edit().putInt(KEY_PARSER_VERSION, PARSER_VERSION).apply()
+            if (done >= PARSER_VERSION || !backfillRunning.compareAndSet(false, true)) return
             val app = context.spendApp
             app.appScope.launch {
-                if (done > 0) app.repository.clearSmsImports(InboxBackfill.windowStart())
-                val found = InboxBackfill.run(context)
+                val found = try {
+                    if (done > 0) app.repository.clearSmsImports(InboxBackfill.windowStart())
+                    InboxBackfill.run(context).also {
+                        // Only mark done once the re-scan finished: if the app is killed midway,
+                        // the next launch runs it again instead of leaving cleared rows missing.
+                        prefs.edit().putInt(KEY_PARSER_VERSION, PARSER_VERSION).apply()
+                    }
+                } finally {
+                    backfillRunning.set(false)
+                }
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "Imported $found payments from SMS", Toast.LENGTH_LONG).show()
                 }

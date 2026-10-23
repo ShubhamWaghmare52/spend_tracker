@@ -24,8 +24,14 @@ class SplitAndTagsTest {
         assertTrue(SplitMatcher.samePerson("Rahul", "RAHUL K SHARMA"))
         assertTrue(SplitMatcher.samePerson("rahul sharma", "rahul.k@okaxis"))
         assertFalse(SplitMatcher.samePerson("Rahul", "AMIT KUMAR"))
-        assertFalse(SplitMatcher.samePerson("Al", "ALOK")) // too short to be a safe match
+        assertFalse(SplitMatcher.samePerson("Al", "ALOK")) // whole names only, not prefixes
         assertFalse(SplitMatcher.samePerson("Rahul", null))
+    }
+
+    @Test fun sharedSurnameIsNotEnoughButShortNamesWork() {
+        assertFalse(SplitMatcher.samePerson("Rahul Sharma", "AMIT SHARMA"))
+        assertFalse(SplitMatcher.samePerson("Rahul Sharma", "SHARMA SWEETS"))
+        assertTrue(SplitMatcher.samePerson("Om", "OM PRAKASH JOSHI"))
     }
 
     @Test fun exactShareSettlesThatShare() {

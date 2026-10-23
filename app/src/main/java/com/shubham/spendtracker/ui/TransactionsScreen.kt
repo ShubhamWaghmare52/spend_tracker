@@ -75,7 +75,10 @@ fun TransactionsScreen(
                 .any { it.contains(q, ignoreCase = true) })
         }
     }
-    val grouped = remember(filtered) { filtered.groupBy { relativeDay(it.timestamp) } }
+    // Grouped by the actual date (not its label), so the same day in different years stays apart.
+    val grouped = remember(filtered) {
+        filtered.groupBy { java.time.Instant.ofEpochMilli(it.timestamp).atZone(java.time.ZoneId.systemDefault()).toLocalDate() }
+    }
     val spent = filtered.filter { it.type == TxnType.DEBIT && it.category != Categorizer.SELF }
     val received = filtered.filter { it.type == TxnType.CREDIT && it.category != Categorizer.SELF }
 
@@ -153,8 +156,9 @@ fun TransactionsScreen(
             }
         }
 
-        grouped.forEach { (day, list) ->
-            item(key = "h$day") {
+        grouped.forEach { (date, list) ->
+            val day = relativeDay(list.first().timestamp)
+            item(key = "h$date") {
                 Row(
                     Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -170,7 +174,7 @@ fun TransactionsScreen(
                     }
                 }
             }
-            item(key = "g$day") {
+            item(key = "g$date") {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
                     color = MaterialTheme.colorScheme.surfaceContainer,

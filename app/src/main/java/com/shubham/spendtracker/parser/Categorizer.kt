@@ -34,8 +34,20 @@ object Categorizer {
     // VPAs like 9876543210@ybl or rahul.sharma@okaxis are usually people, not shops.
     private val personVpa = Regex("""^(\d{10}|[a-z]+[._]?[a-z]*\d{0,4})@(ybl|ibl|axl|okaxis|okhdfcbank|okicici|oksbi|paytm|apl|upi)$""")
 
+    // Paying the card bill from the bank: the card purchases were already counted when made.
+    private val cardBill = Regex(
+        """(credit card|\bcc\b)[^.]{0,60}\b(bill|payment|dues)\b|\b(bill|payment|dues)\b[^.]{0,60}(credit card|\bcc\b)""",
+        RegexOption.IGNORE_CASE,
+    )
+    private val cardSpend = Regex("""\bspent\b""", RegexOption.IGNORE_CASE)
+
+    /** A bank debit that pays off a credit card bill (counted as moving money, not spending). */
+    fun isCardBillPayment(type: TxnType, rawText: String): Boolean =
+        type == TxnType.DEBIT && cardBill.containsMatchIn(rawText) && !cardSpend.containsMatchIn(rawText)
+
     fun categorize(type: TxnType, merchant: String?, rawText: String): String {
         if (type == TxnType.CREDIT) return INCOME
+        if (isCardBillPayment(type, rawText)) return SELF
         // Match the payee only; raw SMS text has words like "current" or "bill" that mislead.
         val haystack = merchant?.lowercase() ?: return OTHER
         rules.firstOrNull { (_, keys) -> keys.any { keyMatches(it, haystack) } }?.let { return it.first }

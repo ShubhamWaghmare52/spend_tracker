@@ -130,6 +130,22 @@ class SmsParserTest {
         assertNull(sms("Dear Customer, EMI debit of Rs.2000/- against your loan account T123 will be processed on 05-AUG-2026. Ensure sufficient balance in your bank account XX4321 to avoid penal charges", "JM-ACMEFN-S"))
     }
 
+    @Test fun creditCardBillPaymentsAreNotIncomeOrSpend() {
+        // The card company's acknowledgement: ignored entirely.
+        assertNull(sms("Payment of Rs.5,000 received towards your HDFC Bank Credit Card ending 1234 on 15-Oct-26. Thank you.", "VM-HDFCBK-S"))
+        // The bank's debit paying the bill: recorded, but filed as a transfer of the user's own money.
+        val debit = sms("Rs.5000 debited from A/c XX4321 on 15-Oct-26 towards Credit Card bill payment. Ref 612345678901", "VM-HDFCBK-S")!!
+        assertEquals(TxnType.DEBIT, debit.type)
+        assertEquals("Self transfer", Categorizer.categorize(debit.type, debit.merchant, debit.rawText))
+        // A purchase on the card is still spending.
+        val spend = sms("Rs.1,200 spent on your SBI Credit Card ending 9876 at AMAZON on 12/01/26.", "VK-SBICRD")!!
+        assertEquals("Shopping", Categorizer.categorize(spend.type, spend.merchant, spend.rawText))
+    }
+
+    @Test fun futureRefundsAreIgnoredUntilTheyArrive() {
+        assertNull(sms("Refund of Rs 499 will be credited to your A/c XX1234 in 3-5 working days", "AD-HDFCBK-S"))
+    }
+
     @Test fun ignoresOtpPromoAndPersonal() {
         assertNull(sms("123456 is your OTP for txn of Rs 500 at AMAZON on card XX1234"))
         assertNull(sms("Get a pre-approved loan of Rs 5,00,000 on your account. Apply now!"))

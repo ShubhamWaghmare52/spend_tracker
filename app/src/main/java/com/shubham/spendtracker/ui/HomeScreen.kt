@@ -545,11 +545,11 @@ private fun RecurringRow(r: RecurringPayment, onClick: () -> Unit) {
     }
 }
 
-/** Paired bars per month: income (green) beside spending (brand). */
+/** Paired bars per month: income (green) beside spending (coral). */
 @Composable
 private fun SavingsChart(flows: List<MonthFlow>, growth: () -> Float) {
     val income = CreditGreen
-    val spend = MaterialTheme.colorScheme.primary
+    val spend = BrandCoral // warm against the green "money in" so the pair reads at a glance
     val measurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
     val max = flows.maxOf { maxOf(it.incomePaise, it.spentPaise) }.coerceAtLeast(1L)

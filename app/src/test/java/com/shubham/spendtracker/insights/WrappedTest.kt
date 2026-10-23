@@ -40,6 +40,13 @@ class WrappedTest {
         assertEquals(71, w.savingsRate)
     }
 
+    @Test fun uncategorisedNeverHeadlinesWhenRealCategoriesExist() {
+        val txns = listOf(t("2026-10-03", 9_000, "X", "Other"), t("2026-10-04", 500, "Swiggy", "Food"))
+        assertEquals("Food", Wrapped.compute(txns, YearMonth.of(2026, 10), ZoneOffset.UTC)!!.topCategory)
+        val onlyOther = listOf(t("2026-10-03", 9_000, "X", "Other"))
+        assertEquals("Other", Wrapped.compute(onlyOther, YearMonth.of(2026, 10), ZoneOffset.UTC)!!.topCategory)
+    }
+
     @Test fun emptyMonthHasNoStory() {
         assertNull(Wrapped.compute(emptyList(), YearMonth.of(2026, 10), ZoneOffset.UTC))
     }

@@ -38,7 +38,9 @@ object Wrapped {
         if (spend.isEmpty()) return null
 
         val total = spend.sumOf { it.amountPaise }
-        val topCat = spend.groupBy { it.category }.mapValues { (_, v) -> v.sumOf { it.amountPaise } }.maxBy { it.value }
+        // "Other" just means uncategorised, so it only headlines when nothing else was spent on.
+        val byCategory = spend.groupBy { it.category }.mapValues { (_, v) -> v.sumOf { it.amountPaise } }.entries.sortedByDescending { it.value }
+        val topCat = byCategory.firstOrNull { it.key != Categorizer.OTHER } ?: byCategory.first()
         val named = spend.filter { it.merchant != null }
         val topMerchant = named.groupBy { it.merchant!! }.mapValues { (_, v) -> v.sumOf { it.amountPaise } }.maxByOrNull { it.value }
         val visited = named.groupBy { it.merchant!! }.maxByOrNull { it.value.size }

@@ -333,7 +333,7 @@ fun HomeScreen(
                     subtitle = spent.count { it.category == cat }.let { n -> "$n ${if (n == 1) "payment" else "payments"}" },
                     amount = amt,
                     share = amt.toFloat() / spentTotal.coerceAtLeast(1),
-                    budget = if (period == Period.MONTH) budgets[cat] ?: 0 else 0,
+                    budget = if (period == Period.MONTH) budgets[cat] ?: 0L else 0L,
                     fill = growth::value,
                     onClick = { listQuery = PaymentQuery("${categoryEmoji(cat)} $cat", periodStart, Long.MAX_VALUE, category = cat) },
                 )

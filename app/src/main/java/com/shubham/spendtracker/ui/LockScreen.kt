@@ -43,12 +43,14 @@ fun LockScreen(onUnlock: () -> Unit) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Box(Modifier.size(120.dp), contentAlignment = Alignment.Center) {
+                // The ring draws itself like the splash icon, so splash → lock → app reads as one motion.
+                val ring = rememberGrowth(Unit, durationMs = 650)
                 Canvas(Modifier.size(120.dp)) {
                     val stroke = 11.dp.toPx()
                     val inset = stroke / 2
                     val arc = Size(size.width - stroke, size.height - stroke)
                     drawArc(Color.White.copy(alpha = 0.22f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(stroke))
-                    drawArc(BrandMint, -90f, 270f, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
+                    drawArc(BrandMint, -90f, 270f * ring.value, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
                 }
                 Text("₹", color = Color.White, fontSize = 52.sp, fontWeight = FontWeight.Bold)
             }

@@ -32,6 +32,9 @@ import android.os.SystemClock
 import android.view.animation.PathInterpolator
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.scaleOut
+import com.shubham.spendtracker.ui.EaseOutEmphasized
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -190,8 +193,12 @@ class MainActivity : FragmentActivity() {
                     )
                 }
 
+                // On a cold start the app content waits behind the lock, so the Overview's
+                // build-in animation plays after unlocking instead of unseen underneath it.
+                // A re-lock mid-session keeps the content composed to preserve where the user was.
+                val showContent = !locked || introPlayed
                 Box(Modifier.fillMaxSize()) {
-                Scaffold(
+                if (showContent) Scaffold(
                     topBar = {
                         TopAppBar(
                             title = {
@@ -312,7 +319,12 @@ class MainActivity : FragmentActivity() {
                         }
                     }
                 }
-                if (locked) LockScreen(onUnlock = ::unlock)
+                AnimatedVisibility(
+                    visible = locked,
+                    enter = fadeIn(tween(150)),
+                    exit = fadeOut(tween(380, easing = EaseOutEmphasized)) +
+                        scaleOut(targetScale = 1.06f, animationSpec = tween(380, easing = EaseOutEmphasized)),
+                ) { LockScreen(onUnlock = ::unlock) }
                 }
             }
         }

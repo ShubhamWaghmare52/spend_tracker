@@ -34,6 +34,12 @@ import com.shubham.spendtracker.data.Transaction
 import com.shubham.spendtracker.parser.Categorizer
 import com.shubham.spendtracker.parser.TxnType
 
+/** Budgeted categories first, then by this month's spend. Income and self transfers can't be budgeted. */
+internal fun budgetCategoryOrder(budgets: Map<String, Long>, spentByCat: Map<String, Long>): List<String> =
+    (Categorizer.all - listOf(Categorizer.INCOME, Categorizer.SELF))
+        // 0L, not 0: mixing Long and Int keys in one comparator throws ClassCastException at runtime.
+        .sortedWith(compareByDescending<String> { it in budgets }.thenByDescending { spentByCat[it] ?: 0L })
+
 /** Monthly budget per category, with this month's spend against each. */
 @Composable
 fun BudgetsScreen(
@@ -49,11 +55,8 @@ fun BudgetsScreen(
             .groupBy { it.category }.mapValues { (_, v) -> v.sumOf { it.amountPaise } }
     }
     // Budgeted categories first, then by what's actually being spent.
-    val categories = remember(budgets, spentByCat) {
-        (Categorizer.all - listOf(Categorizer.INCOME, Categorizer.SELF))
-            .sortedWith(compareByDescending<String> { it in budgets }.thenByDescending { spentByCat[it] ?: 0 })
-    }
-    val budgetedSpent = budgets.keys.sumOf { spentByCat[it] ?: 0 }
+    val categories = remember(budgets, spentByCat) { budgetCategoryOrder(budgets, spentByCat) }
+    val budgetedSpent = budgets.keys.sumOf { spentByCat[it] ?: 0L }
     val budgetTotal = budgets.values.sum()
 
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp)) {
@@ -86,7 +89,7 @@ fun BudgetsScreen(
             Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
                 Column(Modifier.padding(vertical = 4.dp)) {
                     categories.forEachIndexed { i, cat ->
-                        BudgetRow(cat, spentByCat[cat] ?: 0, budgets[cat] ?: 0) { editing = cat }
+                        BudgetRow(cat, spentByCat[cat] ?: 0L, budgets[cat] ?: 0L) { editing = cat }
                         if (i < categories.lastIndex) {
                             HorizontalDivider(
                                 Modifier.padding(start = 70.dp, end = 16.dp),
@@ -102,7 +105,7 @@ fun BudgetsScreen(
     editing?.let { cat ->
         AmountDialog(
             "${categoryEmoji(cat)} $cat · monthly budget",
-            budgets[cat] ?: 0,
+            budgets[cat] ?: 0L,
             "Remove budget",
             onDismiss = { editing = null },
             onSave = { onSetBudget(cat, it); editing = null },

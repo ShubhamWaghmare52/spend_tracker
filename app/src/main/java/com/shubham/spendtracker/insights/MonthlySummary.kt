@@ -39,7 +39,7 @@ object MonthlySummary {
             topCategory = top?.key,
             topCategoryPaise = top?.value ?: 0,
             overBudget = budgets.mapNotNull { (cat, budget) ->
-                val over = (byCategory[cat] ?: 0) - budget
+                val over = (byCategory[cat] ?: 0L) - budget
                 if (over > 0) cat to over else null
             }.sortedByDescending { it.second },
         )

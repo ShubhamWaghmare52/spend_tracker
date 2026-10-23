@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 /** User preferences that aren't tied to one screen. */
 object AppSettings {
+    enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
     data class Values(
         /** Ask for fingerprint / face / screen lock when opening the app. */
         val appLock: Boolean = false,
@@ -14,6 +16,8 @@ object AppSettings {
         val hideAmounts: Boolean = false,
         /** Notify about payments that look out of character. */
         val unusualAlerts: Boolean = true,
+        /** Follow the phone's dark mode, or force light / dark. */
+        val theme: ThemeMode = ThemeMode.SYSTEM,
     )
 
     private const val PREFS = "settings"
@@ -32,6 +36,7 @@ object AppSettings {
             .putBoolean("app_lock", next.appLock)
             .putBoolean("hide_amounts", next.hideAmounts)
             .putBoolean("unusual_alerts", next.unusualAlerts)
+            .putString("theme", next.theme.name)
             .apply()
         publish(next)
     }
@@ -47,6 +52,7 @@ object AppSettings {
             appLock = p.getBoolean("app_lock", false),
             hideAmounts = p.getBoolean("hide_amounts", false),
             unusualAlerts = p.getBoolean("unusual_alerts", true),
+            theme = runCatching { ThemeMode.valueOf(p.getString("theme", null) ?: "") }.getOrDefault(ThemeMode.SYSTEM),
         )
     }
 }

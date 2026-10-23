@@ -13,6 +13,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -31,6 +34,7 @@ fun SettingsScreen(
     onToggleLock: (Boolean) -> Unit,
     onToggleHideAmounts: (Boolean) -> Unit,
     onToggleUnusualAlerts: (Boolean) -> Unit,
+    onThemeChange: (AppSettings.ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -39,6 +43,28 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
+        SettingsGroup("Appearance") {
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🎨", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.width(16.dp))
+                    Text("Theme", fontWeight = FontWeight.Medium)
+                }
+                Spacer(Modifier.height(12.dp))
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                    val modes = AppSettings.ThemeMode.entries
+                    modes.forEachIndexed { i, mode ->
+                        SegmentedButton(
+                            selected = settings.theme == mode,
+                            onClick = { onThemeChange(mode) },
+                            shape = SegmentedButtonDefaults.itemShape(i, modes.size),
+                            icon = {},
+                        ) { Text(mode.name.lowercase().replaceFirstChar(Char::uppercase)) }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
         SettingsGroup("Privacy") {
             ToggleRow(
                 "🔒", "App lock",

@@ -7,6 +7,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -23,10 +25,11 @@ private val Light = lightColorScheme(
     primaryContainer = Color(0xFFCDEBE1),
     onPrimaryContainer = Color(0xFF00201A),
     secondaryContainer = Color(0xFFE6EEEA),
-    background = Color(0xFFF7F8F6),
-    surface = Color(0xFFF7F8F6),
+    // A touch deeper than the white cards so card edges read clearly in light mode.
+    background = Color(0xFFEEF1EE),
+    surface = Color(0xFFEEF1EE),
     surfaceContainer = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF7F8F6),
+    surfaceContainerLow = Color(0xFFF2F4F2),
     surfaceContainerHigh = Color(0xFFECEFEC),
     surfaceContainerHighest = Color(0xFFE4E8E5),
     surfaceVariant = Color(0xFFDDE5E0),
@@ -51,9 +54,9 @@ private val Dark = darkColorScheme(
 )
 
 @Composable
-fun SpendTheme(content: @Composable () -> Unit) {
+fun SpendTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) Dark else Light,
+        colorScheme = if (dark) Dark else Light,
         typography = TabularTypography,
         content = content,
     )
@@ -78,8 +81,16 @@ val BrandMint = Color(0xFF9BF2CF)
 val BrandCoral = Color(0xFFFF8A80)
 val BrandAmber = Color(0xFFFFC86B)
 
-val CreditGreen = Color(0xFF2E8B57)
-val WarnAmber = Color(0xFFE09A1A)
+// Text colours that must stay readable on both themes (WCAG-ish 4.5:1 on cards):
+// a deeper shade on light backgrounds, a brighter one on dark.
+private val isLightTheme: Boolean
+    @Composable @ReadOnlyComposable get() = MaterialTheme.colorScheme.background.luminance() > 0.5f
+
+val CreditGreen: Color
+    @Composable @ReadOnlyComposable get() = if (isLightTheme) Color(0xFF1E7A46) else Color(0xFF5BC88E)
+
+val WarnAmber: Color
+    @Composable @ReadOnlyComposable get() = if (isLightTheme) Color(0xFF9A5B00) else Color(0xFFE09A1A)
 
 private val categoryColors = mapOf(
     "Food" to Color(0xFFE76F51),
@@ -94,7 +105,7 @@ private val categoryColors = mapOf(
     "Investments" to Color(0xFF00897B),
     "Rent" to Color(0xFF8D6E63),
     "Transfers" to Color(0xFF78909C),
-    "Income" to CreditGreen,
+    "Income" to Color(0xFF2E8B57),
 )
 
 fun categoryColor(category: String): Color = categoryColors[category] ?: Color(0xFF9E9E9E)

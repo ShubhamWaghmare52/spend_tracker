@@ -5,7 +5,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.graphics.Color
 import android.os.Bundle
+import android.view.WindowManager
+import androidx.activity.SystemBarStyle
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
@@ -85,22 +90,43 @@ import kotlinx.coroutines.withContext
 class MainActivity : FragmentActivity() {
     @Volatile private var dataReady = false
 
-    // App lock: locked on a cold start, and again after RELOCK_AFTER_MS in the background.
+    // App lock: asks on a fresh start, and again after RELOCK_AFTER_MS away from the app.
     private var locked by mutableStateOf(false)
-    private var backgroundAt = 0L
+    private val lockTimer = LockTimer.shared
+
+    // The app's theme decides the status/navigation bar icon colour. The splash screen and the
+    // fingerprint dialog can reset it when they close, so it's re-applied after each of those.
+    private var barsDark = false
+
+    private fun applyBars() {
+        val style = if (barsDark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        applyBars()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    }
+
+    // Recents captures its preview as the app leaves the screen. With app lock on, mark the window
+    // secure at that moment so the preview is blank (setRecentsScreenshotEnabled alone isn't
+    // reliable on every launcher), and clear it on return so in-app screenshots still work.
+    override fun onPause() {
+        if (AppSettings.current(this).appLock) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        super.onPause()
+    }
 
     override fun onStart() {
         super.onStart()
-        if (AppSettings.current(this).appLock && backgroundAt > 0 &&
-            SystemClock.elapsedRealtime() - backgroundAt > AppLock.RELOCK_AFTER_MS
-        ) {
-            locked = true
-        }
+        val now = SystemClock.elapsedRealtime()
+        lockTimer.onReturned(now)
+        if (AppSettings.current(this).appLock && lockTimer.needsUnlock(now)) locked = true
     }
 
     override fun onStop() {
         super.onStop()
-        backgroundAt = SystemClock.elapsedRealtime()
+        if (!locked) lockTimer.onLeft(SystemClock.elapsedRealtime())
     }
 
     /** Hide the app's preview in Recents while app lock is on (Android 13+). */
@@ -108,16 +134,19 @@ class MainActivity : FragmentActivity() {
         if (Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!lockOn)
     }
 
-    private fun unlock() = AppLock.authenticate(this, "Unlock Spend Tracker") { locked = false }
+    private fun unlock() = AppLock.authenticate(this, "Unlock Spend Tracker") {
+        lockTimer.onUnlocked()
+        locked = false
+        applyBars()
+    }
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         val app = spendApp
         AppSettings.current(this).appLock.let { lockOn ->
-            locked = lockOn
+            locked = lockOn && lockTimer.needsUnlock(SystemClock.elapsedRealtime())
             applyRecentsPrivacy(lockOn)
         }
 
@@ -131,12 +160,28 @@ class MainActivity : FragmentActivity() {
             runCatching { provider.iconView }.getOrNull()
                 ?.animate()?.scaleX(1.35f)?.scaleY(1.35f)?.setDuration(SPLASH_EXIT_MS)?.setInterpolator(ease)?.start()
             provider.view.animate().alpha(0f).setDuration(SPLASH_EXIT_MS).setInterpolator(ease)
-                .withEndAction { provider.remove() }.start()
+                .withEndAction {
+                    provider.remove()
+                    applyBars()
+                }.start()
         }
         if (hasSms(this)) backfillOnce(this)
 
         setContent {
-            SpendTheme {
+            val themeMode = AppSettings.values(this).collectAsStateWithLifecycle().value?.theme ?: AppSettings.ThemeMode.SYSTEM
+            val dark = when (themeMode) {
+                AppSettings.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                AppSettings.ThemeMode.LIGHT -> false
+                AppSettings.ThemeMode.DARK -> true
+            }
+            // Status/navigation bar icons follow the app's theme, not the phone's, so they stay
+            // readable when the app is forced light on a dark phone (or the other way round).
+            DisposableEffect(dark) {
+                barsDark = dark
+                applyBars()
+                onDispose {}
+            }
+            SpendTheme(dark) {
                 val context = LocalContext.current
                 val loaded by app.repository.transactions.collectAsStateWithLifecycle<List<Transaction>?>(null)
                 val txns = loaded ?: emptyList()
@@ -287,6 +332,7 @@ class MainActivity : FragmentActivity() {
                                     AppSettings.update(context) { it.copy(unusualAlerts = on) }
                                     if (on) askNotificationPermission()
                                 },
+                                onThemeChange = { mode -> AppSettings.update(context) { it.copy(theme = mode) } },
                                 modifier = m,
                             )
                             shownTab == 0 -> HomeScreen(
@@ -338,6 +384,7 @@ class MainActivity : FragmentActivity() {
         }
         AppLock.authenticate(this, if (on) "Turn on app lock" else "Turn off app lock") {
             AppSettings.update(this) { it.copy(appLock = on) }
+            if (on) lockTimer.onUnlocked() // they just authenticated
             applyRecentsPrivacy(on)
         }
     }

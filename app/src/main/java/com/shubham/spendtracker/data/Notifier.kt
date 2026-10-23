@@ -44,6 +44,13 @@ object Notifier {
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(open)
             .setAutoCancel(true)
+            // With app lock on, keep spending details off the lock screen entirely: the alert still
+            // sounds, and shows in the shade once the phone is unlocked. ("Private" isn't enough:
+            // phones set to show sensitive content would still display it.)
+            .setVisibility(
+                if (AppSettings.current(context).appLock) NotificationCompat.VISIBILITY_SECRET
+                else NotificationCompat.VISIBILITY_PRIVATE,
+            )
             .build()
         try {
             NotificationManagerCompat.from(context).notify(id, n)

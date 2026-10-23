@@ -15,9 +15,9 @@ import android.graphics.Typeface
 import android.widget.RemoteViews
 import com.shubham.spendtracker.MainActivity
 import com.shubham.spendtracker.R
+import com.shubham.spendtracker.data.AppSettings
 import com.shubham.spendtracker.data.DailyLimit
 import com.shubham.spendtracker.spendApp
-import com.shubham.spendtracker.ui.formatRupeesShort
 import kotlinx.coroutines.launch
 
 /** Home screen widget: today's spending against the daily limit, drawn as the app-icon ring. */
@@ -45,29 +45,23 @@ class SpendWidget : AppWidgetProvider() {
             if (ids.isEmpty()) return
             val spent = context.spendApp.repository.spentSince(DailyLimit.startOfToday())
             val limit = DailyLimit.limit(context).value
-            manager.updateAppWidget(ids, build(context, spent, limit))
+            val settings = AppSettings.current(context)
+            manager.updateAppWidget(ids, build(context, WidgetContent.of(spent, limit, settings.appLock, settings.hideAmounts)))
         }
 
-        private fun build(context: Context, spent: Long, limit: Long): RemoteViews {
-            val level = DailyLimit.level(spent, limit)
-            val color = when (level) {
+        private fun build(context: Context, content: WidgetContent): RemoteViews {
+            val color = when (content.level) {
                 DailyLimit.Level.OK -> MINT
                 DailyLimit.Level.NEAR -> AMBER
                 DailyLimit.Level.OVER -> CORAL
-            }
-            val fraction = if (limit > 0) (spent.toFloat() / limit).coerceIn(0f, 1f) else 0f
-            val detail = when {
-                limit <= 0 -> "Set a daily limit in the app"
-                level == DailyLimit.Level.OVER -> "${formatRupeesShort(spent - limit)} over your ${formatRupeesShort(limit)} limit"
-                else -> "${formatRupeesShort(limit - spent)} left of ${formatRupeesShort(limit)}"
             }
             val open = PendingIntent.getActivity(
                 context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,
             )
             return RemoteViews(context.packageName, R.layout.widget_spend).apply {
-                setImageViewBitmap(R.id.widget_ring, ring(context, fraction, color))
-                setTextViewText(R.id.widget_amount, formatRupeesShort(spent))
-                setTextViewText(R.id.widget_detail, detail)
+                setImageViewBitmap(R.id.widget_ring, ring(context, content.fraction, color))
+                setTextViewText(R.id.widget_amount, content.amount)
+                setTextViewText(R.id.widget_detail, content.detail)
                 setOnClickPendingIntent(android.R.id.background, open)
             }
         }

@@ -320,4 +320,24 @@ class DedupeAndCategoryTest {
         assertEquals("Self transfer", Categorizer.categorize(TxnType.DEBIT, "rahulsharma52-2@okaxi", "Sent Rs.5000.00", own))
         assertEquals("Income", Categorizer.categorize(TxnType.CREDIT, "rahulsharma52-2@okaxis", "", own))
     }
+
+    @Test fun ownPayeesSkipShopsAndReversals() {
+        fun self(id: Long, type: TxnType, merchant: String?, ref: String?, raw: String) = Transaction(
+            id = id, amountPaise = 20000, type = type, merchant = merchant, accountLast4 = null, source = TxnSource.SMS,
+            sourceApp = "AD-HDFCBK-S", timestamp = 0L, upiRef = ref, category = Categorizer.SELF, rawText = raw,
+        )
+        val rows = listOf(
+            self(1, TxnType.DEBIT, "rahulsharma52-3@okaxis", "111", "Rs.200.00 Dr. from A/C XXXXXX1319 and Cr. to rahulsharma52-3@okaxis"),
+            self(2, TxnType.CREDIT, "rahulsharma52-2@okaxis", "111", "Credit Alert! Rs.200.00 credited from VPA rahulsharma52-2@okaxis"),
+            // A failed payment to a friend and its reversal share a ref.
+            self(3, TxnType.DEBIT, "AMIT KUMAR PATIL", "222", "Sent Rs.200.00 To AMIT KUMAR PATIL Ref 222"),
+            self(4, TxnType.CREDIT, null, "222", "Rs.200.00 credited to A/c XX4842 towards reversal of UPI Ref 222"),
+            // Same for a shop.
+            self(5, TxnType.DEBIT, "SWIGGY", "333", "Sent Rs.200.00 To SWIGGY Ref 333"),
+            self(6, TxnType.CREDIT, "SWIGGY", "333", "Refund of Rs.200.00 credited, UPI Ref 333"),
+            // Card bill payment.
+            self(7, TxnType.DEBIT, "HDFC Bank Credit Card", null, "Rs.5000 paid towards HDFC Bank Credit Card"),
+        )
+        assertEquals(listOf("rahulsharma52-3@okaxis", "rahulsharma52-2@okaxis"), Categorizer.ownPayees(rows))
+    }
 }

@@ -1,5 +1,7 @@
 package com.shubham.spendtracker.parser
 
+import com.shubham.spendtracker.data.Transaction
+
 object Categorizer {
     const val INCOME = "Income"
     const val TRANSFERS = "Transfers"
@@ -107,6 +109,18 @@ object Categorizer {
         // starts a business word is taken as one.
         val last = words.last()
         return last.length < 4 || businessWords.none { it.length > last.length && it.startsWith(last) }
+    }
+
+    // A failed UPI payment's reversal reuses the original ref, so it pairs up like a self transfer.
+    private val reversal = Regex("""\b(revers\w*|refund\w*)\b""", RegexOption.IGNORE_CASE)
+
+    /**
+     * Payees of the user's own self transfers. Only person-like payees count, and reversal pairs are
+     * skipped, so a shop or friend whose failed payment was refunded isn't taken for the user.
+     */
+    fun ownPayees(selfRows: List<Transaction>): List<String> {
+        val reversedRefs = selfRows.filter { it.upiRef != null && reversal.containsMatchIn(it.rawText) }.mapNotNull { it.upiRef }.toSet()
+        return selfRows.filter { it.upiRef !in reversedRefs && looksLikePerson(it.merchant) }.mapNotNull { it.merchant }.distinct()
     }
 
     /**

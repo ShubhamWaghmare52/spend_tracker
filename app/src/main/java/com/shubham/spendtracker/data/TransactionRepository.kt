@@ -74,12 +74,14 @@ class TransactionRepository(private val dao: TransactionDao) {
      * sends no credit SMS to pair with) become self transfers too, unless the user picked a category.
      */
     private suspend fun markPaymentsToOwnPayees() {
-        val own = dao.merchantsInCategory(Categorizer.SELF)
+        val own = ownPayees()
         dao.debitsNotIn(Categorizer.SELF)
             .filter { Categorizer.isOwnPayee(it.merchant, own) }
             .filter { row -> Categorizer.merchantKey(row.merchant)?.let { dao.merchantCategory(it) } == null }
             .forEach { dao.update(it.copy(category = Categorizer.SELF)) }
     }
+
+    private suspend fun ownPayees(): List<String> = Categorizer.ownPayees(dao.inCategory(Categorizer.SELF))
 
     private suspend fun insertNew(parsed: ParsedTxn): Transaction {
         val remembered = Categorizer.merchantKey(parsed.merchant)?.let { dao.merchantCategory(it) }
@@ -94,7 +96,7 @@ class TransactionRepository(private val dao: TransactionDao) {
                 timestamp = parsed.timestamp,
                 upiRef = parsed.upiRef,
                 category = remembered
-                    ?: Categorizer.categorize(parsed.type, parsed.merchant, parsed.rawText, dao.merchantsInCategory(Categorizer.SELF)),
+                    ?: Categorizer.categorize(parsed.type, parsed.merchant, parsed.rawText, ownPayees()),
                 rawText = parsed.rawText,
             )
         return row.copy(id = dao.insert(row))

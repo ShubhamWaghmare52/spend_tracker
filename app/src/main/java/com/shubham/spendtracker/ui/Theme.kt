@@ -106,6 +106,8 @@ private val categoryColors = mapOf(
     "Entertainment" to Color(0xFFD9488F),
     "Health" to Color(0xFF3B82C4),
     "Education" to Color(0xFF5C6BC0),
+    "Subscriptions" to Color(0xFF7E57C2),
+    "Loans & EMI" to Color(0xFFC0563F),
     "Investments" to Color(0xFF00897B),
     "Rent" to Color(0xFF8D6E63),
     "Cash" to Color(0xFF6D8B74),
@@ -161,7 +163,7 @@ private val dayYearFmt = DateTimeFormatter.ofPattern("EEE, d MMM yyyy")
 private val categoryEmojis = mapOf(
     "Food" to "🍔", "Groceries" to "🛒", "Shopping" to "🛍️", "Travel" to "🚕", "Fuel" to "⛽",
     "Bills & Recharge" to "💡", "Entertainment" to "🎬", "Health" to "💊", "Education" to "🎓",
-    "Investments" to "📈", "Rent" to "🏠", "Cash" to "💵", "Transfers" to "👤", "Self transfer" to "🔁", "Income" to "💰",
+    "Subscriptions" to "🧾", "Loans & EMI" to "🏦", "Investments" to "📈", "Rent" to "🏠", "Cash" to "💵", "Transfers" to "👤", "Self transfer" to "🔁", "Income" to "💰",
 )
 
 fun categoryEmoji(category: String): String = categoryEmojis[category] ?: "💳"

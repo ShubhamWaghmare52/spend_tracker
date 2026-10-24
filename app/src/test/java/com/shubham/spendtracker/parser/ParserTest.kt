@@ -340,4 +340,21 @@ class DedupeAndCategoryTest {
         )
         assertEquals(listOf("rahulsharma52-3@okaxis", "rahulsharma52-2@okaxis"), Categorizer.ownPayees(rows))
     }
+
+    @Test fun loansSipsAndSubscriptions() {
+        val emi = SmsParser.parse(
+            "AD-HDFCBK-S",
+            "UPDATE: INR 5,263.00 debited from HDFC Bank XX4842 on 03-SEP-26. Info: ACH D- L&TFINANCELIMITED-TXXXXXXXXXX6013. Avl bal:INR 33,050.84",
+            0L,
+        )!!
+        assertEquals("Loans & EMI", Categorizer.categorize(emi.type, emi.merchant, emi.rawText))
+        assertEquals("Loans & EMI", Categorizer.categorize(TxnType.DEBIT, "CMS/LANDTTW/2026", ""))
+        assertEquals("Loans & EMI", Categorizer.categorize(TxnType.DEBIT, "BAJAJ FINANCE LTD", ""))
+        assertEquals("Investments", Categorizer.categorize(TxnType.DEBIT, "mfautopay.elements@hdfcbank", ""))
+        assertEquals("Subscriptions", Categorizer.categorize(TxnType.DEBIT, "ANTHROPIC* CLAUDE SUB", ""))
+        assertEquals("Subscriptions", Categorizer.categorize(TxnType.DEBIT, "GOOGLE PLAY", ""))
+        assertEquals("Entertainment", Categorizer.categorize(TxnType.DEBIT, "NETFLIX.COM", ""))
+        // Short keys stay whole words: "emi" must not match a name like "EMILY".
+        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "EMILY ROSE DSOUZA", ""))
+    }
 }

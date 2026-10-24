@@ -27,10 +27,17 @@ object Categorizer {
             "bescom", "tata power", "adani", "gas", "broadband", "act fibernet", "recharge", "dth", "tatasky", "bill"),
         "Entertainment" to listOf("netflix", "hotstar", "prime video", "spotify", "bookmyshow", "pvr", "inox",
             "youtube", "sonyliv", "zee5", "steam", "playstation", "district"),
+        // Software and AI plans; streaming stays under Entertainment above.
+        "Subscriptions" to listOf("anthropic", "claude", "openai", "chatgpt", "google one", "google play", "apple.com",
+            "icloud", "microsoft", "github", "notion", "canva", "adobe", "linkedin", "zoom.us"),
         "Health" to listOf("pharma", "medical", "chemist", "apollo", "1mg", "netmeds", "pharmeasy", "hospital",
             "clinic", "diagnostic", "lab", "medplus"),
         "Education" to listOf("udemy", "coursera", "byju", "unacademy", "school", "college", "university", "fees"),
-        "Investments" to listOf("zerodha", "groww", "upstox", "mutual fund", "sip", "indmoney", "kuvera", "coin"),
+        // "CMS/LANDTTW" is L&T's two-wheeler loan collection account.
+        "Loans & EMI" to listOf("l&tfinance", "l&t finance", "landt", "bajaj fin", "hdb fin", "tvs credit", "home credit",
+            "muthoot", "loan", "emi", "lending"),
+        "Investments" to listOf("zerodha", "groww", "upstox", "mutual fund", "sip", "indmoney", "kuvera", "coin",
+            "mfautopay", "kfintech", "iccl", "bsestar"),
         "Rent" to listOf("rent", "nobroker", "housing", "maintenance", "society"),
     )
 

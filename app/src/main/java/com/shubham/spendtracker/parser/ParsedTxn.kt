@@ -69,7 +69,9 @@ internal object ParseUtils {
     /** Finds the payee/payer after one of [prepositions], e.g. "to SWIGGY on …". */
     fun findParty(text: String, prepositions: List<String>): String? {
         val re = Regex(
-            """\b(?:${prepositions.joinToString("|")})[\s:]+(?:vpa\s+|upi\s+id\s+|merchant\s+)?([A-Za-z0-9][A-Za-z0-9 .&'_@*/\-]{1,40}?)$stopAhead""",
+            // A whole VPA first: merchant VPAs like "shopname.eazypay@icici" run past the 40-char name limit.
+            """\b(?:${prepositions.joinToString("|")})[\s:]+(?:vpa\s+|upi\s+id\s+|merchant\s+)?""" +
+                """([A-Za-z0-9][A-Za-z0-9._\-]{1,63}@[A-Za-z0-9]{2,20}|[A-Za-z0-9][A-Za-z0-9 .&'_@*/\-]{1,40}?)$stopAhead""",
             RegexOption.IGNORE_CASE,
         )
         return re.findAll(text).firstNotNullOfOrNull { cleanParty(it.groupValues[1]) }

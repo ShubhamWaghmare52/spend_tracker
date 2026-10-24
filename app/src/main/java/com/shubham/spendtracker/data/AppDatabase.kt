@@ -74,6 +74,12 @@ interface TransactionDao {
     @Query("SELECT COALESCE(SUM(amountPaise), 0) FROM transactions WHERE type = 'DEBIT' AND category = :category AND timestamp >= :from")
     suspend fun spentInCategorySince(category: String, from: Long): Long
 
+    @Query("SELECT DISTINCT merchant FROM transactions WHERE category = :category AND merchant IS NOT NULL")
+    suspend fun merchantsInCategory(category: String): List<String>
+
+    @Query("SELECT * FROM transactions WHERE type = 'DEBIT' AND category != :excluded AND merchant IS NOT NULL")
+    suspend fun debitsNotIn(excluded: String): List<Transaction>
+
     @Query("UPDATE transactions SET category = :category WHERE merchant = :merchant")
     suspend fun setCategoryForMerchant(merchant: String, category: String)
 

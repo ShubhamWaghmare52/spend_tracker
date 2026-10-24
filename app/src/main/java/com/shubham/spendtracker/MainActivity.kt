@@ -425,7 +425,7 @@ class MainActivity : FragmentActivity() {
         private const val SPLASH_EXIT_MS = 320L
 
         // Bump when the SMS parser improves so existing imports are re-parsed once.
-        private const val PARSER_VERSION = 7
+        private const val PARSER_VERSION = 9
 
         fun hasSms(context: Context) =
             ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED

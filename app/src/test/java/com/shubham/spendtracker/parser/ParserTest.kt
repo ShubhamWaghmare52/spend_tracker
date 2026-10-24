@@ -265,4 +265,59 @@ class DedupeAndCategoryTest {
         assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, null, "paid at hotel swiggy"))
         assertEquals("Income", Categorizer.categorize(TxnType.CREDIT, "anyone", ""))
     }
+
+    @Test fun longDottedMerchantVpa() {
+        val t = SmsParser.parse(
+            "JK-BOBSMS-S",
+            "Rs.200.00 Dr. from A/C XXXXXX1319 and Cr. to someshoptrustministries.eazypay@icici. Ref:622199957189. AvlBal:Rs1034.50(2026:08:10 09:21:06). Not you? Call 18005700/5000-BOB",
+            0L,
+        )!!
+        assertEquals("someshoptrustministries.eazypay@icici", t.merchant)
+        assertEquals("622199957189", t.upiRef)
+    }
+
+    @Test fun atmWithdrawalIsCash() {
+        val raw = "Withdrawn Rs.500 From HDFC Bank Card x5090 At KOLHAPUR BR On 2026-09-24:16:02:32 Bal Rs.1.8 Not You? Call 18002586161/SMS BLOCK DC 5090 to 7308080808"
+        val t = SmsParser.parse("AD-HDFCBK-S", raw, 0L)!!
+        assertEquals(TxnType.DEBIT, t.type)
+        assertEquals("Cash", Categorizer.categorize(t.type, t.merchant, t.rawText))
+        assertEquals("Cash", Categorizer.categorize(TxnType.DEBIT, null, "Rs 2000 debited from A/c XX12 for ATM withdrawal at SBI"))
+        assertEquals("Groceries", Categorizer.categorize(TxnType.DEBIT, "STAR BAZAAR", "Sent Rs.300 From HDFC Bank A/C *4842 To STAR BAZAAR"))
+    }
+
+    @Test fun personNamesAreTransfers() {
+        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "PALANGE SARITA KISAN", ""))
+        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "Mr SUHAS ASHOK KADAM", ""))
+        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "manishbagade2-3@okaxis", ""))
+        assertEquals("Food", Categorizer.categorize(TxnType.DEBIT, "Jaswant sweets", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "Jai Raj Auto Corner", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "M S ANKIT SAJWAN MINISTRI", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "OM SAI ENTERPRISES", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "gpay-12190566913@okbizaxis", ""))
+        // Shops whose names look like people's, often cut short by the bank.
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "SHREE DHANLAXMI SWEE", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "Soundbox Upfront Collecti", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "Amit Shope", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "UNIT WELFARE FUND KOLHAPU", ""))
+        assertEquals("Groceries", Categorizer.categorize(TxnType.DEBIT, "SHOBHAAI BHAJI DUDH KENDR", ""))
+        assertEquals("Food", Categorizer.categorize(TxnType.DEBIT, "Narayani Tea Stall", ""))
+        assertEquals("Food", Categorizer.categorize(TxnType.DEBIT, "Shri mahalaxmi bhellpuri", ""))
+        assertEquals("Entertainment", Categorizer.categorize(TxnType.DEBIT, "District Movies", ""))
+        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "DEEPAK SADASHIV BHAR", ""))
+    }
+
+    @Test fun paymentsToOwnPayeesAreSelfTransfers() {
+        val own = listOf("rahulsharma52-3@okaxis", "*am52@okaxis", "RAHUL VIJAY SHARMA")
+        // Same user, other Google Pay handle, cut short by the bank.
+        assertTrue(Categorizer.isOwnPayee("rahulsharma52-2@okaxi", own))
+        assertTrue(Categorizer.isOwnPayee("RahulSharma52@okaxis", own))
+        assertTrue(Categorizer.isOwnPayee("Rahul Vijay Sharma", own))
+        assertFalse(Categorizer.isOwnPayee("rahulsharma@okaxis", own))
+        assertFalse(Categorizer.isOwnPayee("rahulsharma52@ybl", own))
+        assertFalse(Categorizer.isOwnPayee("*am52@okaxis", own))
+        assertFalse(Categorizer.isOwnPayee("RAHUL SHARMA", own))
+        assertFalse(Categorizer.isOwnPayee("rahulsharma52-2@okaxis", emptyList()))
+        assertEquals("Self transfer", Categorizer.categorize(TxnType.DEBIT, "rahulsharma52-2@okaxi", "Sent Rs.5000.00", own))
+        assertEquals("Income", Categorizer.categorize(TxnType.CREDIT, "rahulsharma52-2@okaxis", "", own))
+    }
 }

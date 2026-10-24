@@ -63,8 +63,21 @@ class TransactionRepository(private val dao: TransactionDao) {
     /** Debit in one of the user's accounts + credit in another with the same UPI ref → both are self transfers. */
     private suspend fun linkSelfTransfer(upiRef: String?) {
         if (upiRef == null) return
-        Deduper.selfTransferPair(dao.byUpiRef(upiRef))
-            .filter { it.category != Categorizer.SELF }
+        val linked = Deduper.selfTransferPair(dao.byUpiRef(upiRef)).filter { it.category != Categorizer.SELF }
+        if (linked.isEmpty()) return
+        linked.forEach { dao.update(it.copy(category = Categorizer.SELF)) }
+        markPaymentsToOwnPayees()
+    }
+
+    /**
+     * Earlier payments to a payee now known to be the user's own (e.g. their Jio Payments Bank VPA, which
+     * sends no credit SMS to pair with) become self transfers too, unless the user picked a category.
+     */
+    private suspend fun markPaymentsToOwnPayees() {
+        val own = dao.merchantsInCategory(Categorizer.SELF)
+        dao.debitsNotIn(Categorizer.SELF)
+            .filter { Categorizer.isOwnPayee(it.merchant, own) }
+            .filter { row -> Categorizer.merchantKey(row.merchant)?.let { dao.merchantCategory(it) } == null }
             .forEach { dao.update(it.copy(category = Categorizer.SELF)) }
     }
 
@@ -80,7 +93,8 @@ class TransactionRepository(private val dao: TransactionDao) {
                 sourceApp = parsed.sourceApp,
                 timestamp = parsed.timestamp,
                 upiRef = parsed.upiRef,
-                category = remembered ?: Categorizer.categorize(parsed.type, parsed.merchant, parsed.rawText),
+                category = remembered
+                    ?: Categorizer.categorize(parsed.type, parsed.merchant, parsed.rawText, dao.merchantsInCategory(Categorizer.SELF)),
                 rawText = parsed.rawText,
             )
         return row.copy(id = dao.insert(row))

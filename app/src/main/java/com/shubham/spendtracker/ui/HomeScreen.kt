@@ -92,6 +92,22 @@ private fun startDate(period: Period, today: LocalDate = LocalDate.now()) = when
 
 private fun startOf(period: Period) = startDate(period).millis()
 
+/**
+ * What the hero ring measures for [period]: the daily limit scaled to the whole period, and for Week/Month
+ * the pace, i.e. the share of that limit you'd have used by the end of [today] spending exactly the daily limit.
+ */
+internal data class RingTarget(val limit: Long, val pace: Float?)
+
+internal fun ringTarget(period: Period, dailyLimit: Long, today: LocalDate = LocalDate.now()): RingTarget {
+    val days = when (period) {
+        Period.TODAY -> return RingTarget(dailyLimit, null)
+        Period.WEEK -> 7
+        Period.MONTH -> today.lengthOfMonth()
+    }
+    val elapsed = ChronoUnit.DAYS.between(startDate(period, today), today).toInt() + 1
+    return RingTarget(dailyLimit * days, elapsed.toFloat() / days)
+}
+
 /** The same stretch of time one period earlier, e.g. Monday–now of last week. */
 private fun previousWindow(period: Period): Pair<Long, Long> {
     val start = startDate(period)
@@ -143,10 +159,7 @@ fun HomeScreen(
         val (from, to) = previousWindow(period)
         txns.filter { it.timestamp in from until to && isSpend(it) }.sumOf { it.amountPaise }
     }
-    val spentToday = remember(txns) {
-        val s = startOf(Period.TODAY)
-        txns.filter { it.timestamp >= s && isSpend(it) }.sumOf { it.amountPaise }
-    }
+    val ring = ringTarget(period, dailyLimit)
     LaunchedEffect(Unit) { if (playIntro) onIntroStarted() }
     // Meters fill and bars grow again whenever the period changes.
     val growth = rememberGrowth(period, delayMs = if (playIntro) 200 else 0)
@@ -174,7 +187,7 @@ fun HomeScreen(
         }
         }
 
-        // Hero: period total on the brand gradient, with today's limit as the icon's ring
+        // Hero: period total on the brand gradient, with the limit for the same period as the icon's ring
         Entrance(1, playIntro) {
             HeroCard(
                 label = when (period) {
@@ -187,8 +200,9 @@ fun HomeScreen(
                 previousNoun = period.noun,
                 payments = spent.size,
                 received = receivedTotal,
-                spentToday = spentToday,
-                dailyLimit = dailyLimit,
+                limitPeriod = period,
+                ringLimit = ring.limit,
+                ringPace = ring.pace,
                 fill = growth::value,
                 onEditLimit = { editingLimit = true },
                 amountsHidden = amountsHidden,

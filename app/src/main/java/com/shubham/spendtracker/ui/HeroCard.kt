@@ -38,7 +38,8 @@ private val OnBrandMuted = Color.White.copy(alpha = 0.72f)
 
 /**
  * The Overview's focal point, in the same deep-green gradient and mint ring as the
- * launcher icon, splash and widget. The ring is today's spend against the daily limit.
+ * launcher icon, splash and widget. The ring is the period's spend against the daily limit scaled to that
+ * period ([ringLimit]); on Week and Month a tick at [ringPace] marks where spending at the daily limit would be by now.
  */
 @Composable
 fun HeroCard(
@@ -48,8 +49,9 @@ fun HeroCard(
     previousNoun: String,
     payments: Int,
     received: Long,
-    spentToday: Long,
-    dailyLimit: Long,
+    limitPeriod: Period,
+    ringLimit: Long,
+    ringPace: Float?,
     fill: () -> Float,
     onEditLimit: () -> Unit,
     amountsHidden: Boolean,
@@ -102,20 +104,20 @@ fun HeroCard(
                 )
             }
             Spacer(Modifier.width(16.dp))
-            LimitRing(spentToday, dailyLimit, fill, onEditLimit)
+            LimitRing(spent, ringLimit, ringPace, limitPeriod, fill, onEditLimit)
         }
     }
 }
 
 @Composable
-private fun LimitRing(spentToday: Long, limit: Long, fill: () -> Float, onClick: () -> Unit) {
-    val level = DailyLimit.level(spentToday, limit)
+private fun LimitRing(spent: Long, limit: Long, pace: Float?, period: Period, fill: () -> Float, onClick: () -> Unit) {
+    val level = DailyLimit.level(spent, limit)
     val arc = when (level) {
         DailyLimit.Level.OK -> BrandMint
         DailyLimit.Level.NEAR -> BrandAmber
         DailyLimit.Level.OVER -> BrandCoral
     }
-    val target = if (limit > 0) (spentToday.toFloat() / limit).coerceIn(0f, 1f) else 0f
+    val target = if (limit > 0) (spent.toFloat() / limit).coerceIn(0f, 1f) else 0f
     Column(
         Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -130,12 +132,21 @@ private fun LimitRing(spentToday: Long, limit: Long, fill: () -> Float, onClick:
                 if (sweep > 0f) {
                     drawArc(arc, -90f, sweep, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
                 }
+                if (limit > 0 && pace != null && pace < 1f) {
+                    // Pace tick across the track, a little past both edges so it reads over the arc.
+                    val angle = Math.toRadians(-90.0 + 360.0 * pace)
+                    val dir = Offset(kotlin.math.cos(angle).toFloat(), kotlin.math.sin(angle).toFloat())
+                    val c = Offset(size.width / 2, size.height / 2)
+                    val r = (size.width - stroke) / 2
+                    val half = stroke / 2 + 2.dp.toPx()
+                    drawLine(OnBrand, c + dir * (r - half), c + dir * (r + half), 2.5.dp.toPx(), StrokeCap.Round)
+                }
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 if (limit > 0) {
                     val over = level == DailyLimit.Level.OVER
                     Text(
-                        formatRupeesShort(if (over) spentToday - limit else limit - spentToday),
+                        formatRupeesShort(if (over) spent - limit else limit - spent),
                         color = if (over) BrandCoral else OnBrand,
                         fontWeight = FontWeight.SemiBold,
                         style = MaterialTheme.typography.titleSmall,
@@ -154,7 +165,15 @@ private fun LimitRing(spentToday: Long, limit: Long, fill: () -> Float, onClick:
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            if (limit > 0) "of ${formatRupeesShort(limit)} today" else "Daily limit",
+            if (limit > 0) {
+                "of ${formatRupeesShort(limit)} " + when (period) {
+                    Period.TODAY -> "today"
+                    Period.WEEK -> "this week"
+                    Period.MONTH -> "this month"
+                }
+            } else {
+                "Daily limit"
+            },
             color = OnBrandMuted,
             style = MaterialTheme.typography.labelSmall,
         )

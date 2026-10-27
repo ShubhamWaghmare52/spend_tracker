@@ -64,6 +64,7 @@ import com.shubham.spendtracker.insights.RecurringDetector
 import com.shubham.spendtracker.insights.Savings
 import java.time.YearMonth
 import com.shubham.spendtracker.insights.RecurringPayment
+import com.shubham.spendtracker.data.ManualPayment
 import com.shubham.spendtracker.data.Split
 import com.shubham.spendtracker.data.Transaction
 import com.shubham.spendtracker.parser.Categorizer
@@ -143,6 +144,8 @@ fun HomeScreen(
     onSetLimit: (Long) -> Unit,
     lowBalance: Long,
     onSetLowBalance: (Long) -> Unit,
+    dismissedGaps: Set<String>,
+    onDismissGap: (String) -> Unit,
     splits: List<Split>,
     actions: TxnActions,
     onOpenSplits: () -> Unit,
@@ -151,6 +154,7 @@ fun HomeScreen(
     var period by rememberSaveable { mutableStateOf(Period.WEEK) }
     var editingLimit by remember { mutableStateOf(false) }
     var editingLowBalance by remember { mutableStateOf(false) }
+    var addingPayment by remember { mutableStateOf<ManualPayment?>(null) }
     var listQuery by remember { mutableStateOf<PaymentQuery?>(null) }
     var selectedBar by remember { mutableStateOf<Int?>(null) }
     var detailId by remember { mutableStateOf<Long?>(null) }
@@ -246,6 +250,18 @@ fun HomeScreen(
         if (balances.isNotEmpty()) {
             Entrance(2, playIntro) {
                 BalancesCard(balances, lowBalance, onEditAlert = { editingLowBalance = true })
+            }
+        }
+
+        // Balances that don't add up: money that moved without an SMS or notification (last 30 days)
+        val gaps = remember(txns, dismissedGaps) {
+            Balances.gaps(txns, since = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000)
+                .filter { it.key !in dismissedGaps }
+                .take(2)
+        }
+        gaps.forEach { gap ->
+            Entrance(2, playIntro) {
+                MissingPaymentCard(gap, onAdd = { addingPayment = paymentFor(gap) }, onDismiss = { onDismissGap(gap.key) })
             }
         }
 
@@ -398,6 +414,14 @@ fun HomeScreen(
     }
     txns.find { it.id == detailId }?.let { t ->
         TxnDetailSheet(t, splits, actions, onDismiss = { detailId = null })
+    }
+    addingPayment?.let { initial ->
+        AddPaymentDialog(
+            initial,
+            accounts = remember(txns) { Balances.latest(txns) },
+            onDismiss = { addingPayment = null },
+            onSave = { actions.addPayment(it); addingPayment = null },
+        )
     }
     if (editingLowBalance) {
         AmountDialog(

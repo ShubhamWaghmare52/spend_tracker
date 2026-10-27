@@ -62,7 +62,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -77,7 +79,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shubham.spendtracker.data.DailyLimit
+import com.shubham.spendtracker.data.DismissedGaps
 import com.shubham.spendtracker.data.LowBalance
+import com.shubham.spendtracker.data.ManualPayment
+import com.shubham.spendtracker.parser.TxnType
+import com.shubham.spendtracker.insights.Balances
+import com.shubham.spendtracker.ui.AddPaymentDialog
 import com.shubham.spendtracker.data.Transaction
 import com.shubham.spendtracker.ingest.InboxBackfill
 import com.shubham.spendtracker.ingest.PaymentNotificationListener
@@ -206,6 +213,8 @@ class MainActivity : FragmentActivity() {
 
                 val dailyLimit by DailyLimit.limit(context).collectAsStateWithLifecycle()
                 val lowBalance by LowBalance.threshold(context).collectAsStateWithLifecycle()
+                val dismissedGaps by DismissedGaps.keys(context).collectAsStateWithLifecycle()
+                var addingPayment by remember { mutableStateOf(false) }
                 val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
                 fun askNotificationPermission() {
                     // Limit, budget and summary alerts are notifications, which need permission on Android 13+.
@@ -238,6 +247,7 @@ class MainActivity : FragmentActivity() {
                         split = { t, people -> app.appScope.launch { app.repository.split(t, people) } },
                         removeSplits = { t -> app.appScope.launch { app.repository.removeSplits(t) } },
                         setSettled = { sp, on -> app.appScope.launch { app.repository.setSettled(sp, on) } },
+                        addPayment = { p -> app.appScope.launch { app.repository.addManual(p) } },
                     )
                 }
 
@@ -290,6 +300,15 @@ class MainActivity : FragmentActivity() {
                                 }
                             },
                         )
+                    },
+                    floatingActionButton = {
+                        if (page == Page.MAIN && tab == 1) {
+                            ExtendedFloatingActionButton(
+                                onClick = { addingPayment = true },
+                                icon = { Icon(Icons.Filled.Add, null) },
+                                text = { Text("Add payment") },
+                            )
+                        }
                     },
                     bottomBar = {
                         if (page == Page.MAIN) {
@@ -364,6 +383,8 @@ class MainActivity : FragmentActivity() {
                                     LowBalance.setThreshold(context, paise)
                                     if (paise > 0) askNotificationPermission()
                                 },
+                                dismissedGaps = dismissedGaps.orEmpty(),
+                                onDismissGap = { DismissedGaps.dismiss(context, it) },
                                 splits = splits,
                                 actions = actions,
                                 onOpenSplits = { page = Page.SPLITS },
@@ -372,6 +393,14 @@ class MainActivity : FragmentActivity() {
                             else -> TransactionsScreen(txns, splits, actions, m)
                         }
                     }
+                }
+                if (addingPayment) {
+                    AddPaymentDialog(
+                        initial = ManualPayment(TxnType.DEBIT, 0, null, System.currentTimeMillis()),
+                        accounts = remember(txns) { Balances.latest(txns) },
+                        onDismiss = { addingPayment = false },
+                        onSave = { actions.addPayment(it); addingPayment = false },
+                    )
                 }
                 AnimatedVisibility(
                     visible = locked,

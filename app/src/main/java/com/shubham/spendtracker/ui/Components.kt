@@ -58,6 +58,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedButton
+import com.shubham.spendtracker.data.ManualPayment
 import com.shubham.spendtracker.data.Split
 import com.shubham.spendtracker.data.Tags
 import com.shubham.spendtracker.data.Transaction
@@ -376,6 +377,7 @@ class TxnActions(
     val split: (Transaction, List<String>) -> Unit,
     val removeSplits: (Transaction) -> Unit,
     val setSettled: (Split, Boolean) -> Unit,
+    val addPayment: (ManualPayment) -> Unit,
 )
 
 @Composable

@@ -1,6 +1,7 @@
 package com.shubham.spendtracker.insights
 
 import com.shubham.spendtracker.data.LowBalance
+import com.shubham.spendtracker.data.ManualPayment
 import com.shubham.spendtracker.data.Transaction
 import com.shubham.spendtracker.parser.Deduper
 import com.shubham.spendtracker.parser.ParsedTxn
@@ -97,5 +98,66 @@ class BalancesTest {
         // An old figure doesn't alert, and 0 turns alerts off.
         assertTrue(LowBalance.due(listOf(bal(100, asOf = now - 5L * 24 * 60 * 60 * 1000)), 100_000, emptySet(), now).first.isEmpty())
         assertTrue(LowBalance.due(listOf(bal(100)), 0, emptySet(), now).first.isEmpty())
+    }
+
+    // A bank that reports its balance on every SMS, skipping some payments entirely.
+    private fun bob(ts: Long, type: TxnType, paise: Long, balance: String) = txn(
+        ts, type, paise, "JD-BOBSMS-S",
+        if (type == TxnType.DEBIT) "Rs.${paise / 100}.00 Dr. from A/C XXXXXX7421 and Cr. to a@okaxis. AvlBal:Rs$balance(...)"
+        else "Dear BOB UPI User: Your account is credited with INR ${paise / 100}.00; AvlBal: Rs$balance - BOB",
+        if (type == TxnType.DEBIT) "7421" else null,
+    )
+
+    @Test fun balancesThatAddUpHaveNoGap() {
+        val rows = listOf(bob(1, TxnType.DEBIT, 10000, "500.00"), bob(2, TxnType.CREDIT, 30000, "800.00"), bob(3, TxnType.DEBIT, 5000, "750.00"))
+        assertTrue(Balances.gaps(rows).isEmpty())
+    }
+
+    @Test fun paymentWithoutSmsShowsAsGap() {
+        // ₹500 → (₹180 paid, no SMS) → +₹300 SMS says ₹620, not ₹800.
+        val rows = listOf(bob(10, TxnType.DEBIT, 10000, "500.00"), bob(20, TxnType.CREDIT, 30000, "620.00"))
+        val gap = Balances.gaps(rows).single()
+        assertEquals(-18000L, gap.amountPaise)
+        assertEquals("Bank of Baroda", gap.bank)
+        assertEquals("7421", gap.last4)
+        assertEquals(10L, gap.from)
+        assertEquals(20L, gap.to)
+
+        // Adding the payment on that account, inside the window, closes the gap.
+        val added = txn(15, TxnType.DEBIT, 18000, "Bank of Baroda", ManualPayment.RAW_TEXT, "7421", source = TxnSource.MANUAL)
+        assertTrue(Balances.gaps(rows + added).isEmpty())
+        // Added without an account it can't be placed, but still explains the gap.
+        val loose = txn(15, TxnType.DEBIT, 18000, ManualPayment.SOURCE, ManualPayment.RAW_TEXT, source = TxnSource.MANUAL)
+        assertTrue(Balances.gaps(rows + loose).isEmpty())
+    }
+
+    @Test fun notificationOnlyPaymentExplainsAGap() {
+        // A Google Pay credit with no bank SMS: the next balance is higher, but that's this payment.
+        val rows = listOf(
+            bob(10, TxnType.DEBIT, 10000, "500.00"),
+            txn(15, TxnType.CREDIT, 25000, "Google Pay", "RAHUL DESHMUKH paid you ₹250.00", source = TxnSource.NOTIFICATION),
+            bob(20, TxnType.DEBIT, 10000, "649.76"),
+        )
+        assertTrue(Balances.gaps(rows).isEmpty())
+    }
+
+    @Test fun smallDifferencesAndOldGapsAreIgnored() {
+        val rows = listOf(bob(10, TxnType.DEBIT, 10000, "500.00"), bob(20, TxnType.DEBIT, 10000, "399.40"))
+        assertTrue(Balances.gaps(rows).isEmpty())
+        // A ₹5 difference is real but too small to suggest.
+        assertTrue(Balances.gaps(listOf(bob(10, TxnType.DEBIT, 10000, "500.00"), bob(20, TxnType.DEBIT, 10000, "395.00"))).isEmpty())
+        val old = listOf(bob(10, TxnType.DEBIT, 10000, "500.00"), bob(20, TxnType.DEBIT, 10000, "200.00"))
+        assertEquals(1, Balances.gaps(old).size)
+        assertTrue(Balances.gaps(old, since = 21).isEmpty())
+    }
+
+    @Test fun manualPaymentCountsTowardsItsAccountBalance() {
+        val rows = listOf(
+            bob(10, TxnType.DEBIT, 10000, "500.00"),
+            txn(20, TxnType.DEBIT, 24000, "Bank of Baroda", ManualPayment.RAW_TEXT, "7421", source = TxnSource.MANUAL),
+        )
+        val b = Balances.latest(rows).single()
+        assertEquals(26000L, b.balancePaise)
+        assertFalse(b.exact)
     }
 }

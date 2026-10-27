@@ -104,6 +104,23 @@ class TransactionRepository(private val dao: TransactionDao) {
         return row.copy(id = dao.insert(row))
     }
 
+    /** Records a payment the user entered. It isn't merged with others: the user knows it's a separate one. */
+    suspend fun addManual(p: ManualPayment): Transaction = ingestLock.withLock {
+        insertNew(
+            ParsedTxn(
+                amountPaise = p.amountPaise,
+                type = p.type,
+                merchant = p.name?.trim()?.ifEmpty { null },
+                accountLast4 = p.last4,
+                upiRef = null,
+                timestamp = p.timestamp,
+                source = TxnSource.MANUAL,
+                sourceApp = p.bank ?: ManualPayment.SOURCE,
+                rawText = ManualPayment.RAW_TEXT,
+            ),
+        )
+    }
+
     /** Re-categorizes this payment and every past/future payment to the same merchant. */
     suspend fun setCategory(txn: Transaction, category: String) {
         val key = Categorizer.merchantKey(txn.merchant)

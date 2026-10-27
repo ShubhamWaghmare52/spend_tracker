@@ -57,6 +57,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.shubham.spendtracker.data.DailyLimit
+import com.shubham.spendtracker.insights.AccountBalance
+import com.shubham.spendtracker.insights.Balances
 import com.shubham.spendtracker.insights.MonthFlow
 import com.shubham.spendtracker.insights.RecurringDetector
 import com.shubham.spendtracker.insights.Savings
@@ -139,6 +141,8 @@ fun HomeScreen(
     onEnableNotif: () -> Unit,
     dailyLimit: Long,
     onSetLimit: (Long) -> Unit,
+    lowBalance: Long,
+    onSetLowBalance: (Long) -> Unit,
     splits: List<Split>,
     actions: TxnActions,
     onOpenSplits: () -> Unit,
@@ -146,6 +150,7 @@ fun HomeScreen(
 ) {
     var period by rememberSaveable { mutableStateOf(Period.WEEK) }
     var editingLimit by remember { mutableStateOf(false) }
+    var editingLowBalance by remember { mutableStateOf(false) }
     var listQuery by remember { mutableStateOf<PaymentQuery?>(null) }
     var selectedBar by remember { mutableStateOf<Int?>(null) }
     var detailId by remember { mutableStateOf<Long?>(null) }
@@ -233,6 +238,14 @@ fun HomeScreen(
                         }
                     }
                 }
+            }
+        }
+
+        // Bank balances from the SMS, with the low-balance alert amount
+        val balances = remember(txns) { Balances.latest(txns) }
+        if (balances.isNotEmpty()) {
+            Entrance(2, playIntro) {
+                BalancesCard(balances, lowBalance, onEditAlert = { editingLowBalance = true })
             }
         }
 
@@ -385,6 +398,15 @@ fun HomeScreen(
     }
     txns.find { it.id == detailId }?.let { t ->
         TxnDetailSheet(t, splits, actions, onDismiss = { detailId = null })
+    }
+    if (editingLowBalance) {
+        AmountDialog(
+            "Alert when a balance drops below",
+            lowBalance,
+            "Turn off alert",
+            onDismiss = { editingLowBalance = false },
+            onSave = { onSetLowBalance(it); editingLowBalance = false },
+        )
     }
     if (editingLimit) {
         LimitDialog(dailyLimit, onDismiss = { editingLimit = false }, onSave = { onSetLimit(it); editingLimit = false })
@@ -673,6 +695,35 @@ private fun SetupCard(smsGranted: Boolean, notifEnabled: Boolean, onGrantSms: ()
                         ),
                     )
                 }) { Text("Open App info") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BalancesCard(balances: List<AccountBalance>, threshold: Long, onEditAlert: () -> Unit) {
+    SectionCard(
+        "Balances",
+        subtitle = "From your bank SMS",
+        trailing = if (threshold > 0) "Alert below ${formatRupeesShort(threshold)}" else "Set alert",
+        onTrailing = onEditAlert,
+    ) {
+        balances.forEach { b ->
+            val low = threshold > 0 && b.balancePaise < threshold
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(b.bank + (b.last4?.let { " ••$it" } ?: ""), fontWeight = FontWeight.Medium)
+                    Text(
+                        (if (b.exact) "Updated " else "Estimated from later payments · ") + formatDay(b.asOf),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(
+                    (if (b.exact) "" else "≈ ") + formatRupeesShort(b.balancePaise),
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (low) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                )
             }
         }
     }

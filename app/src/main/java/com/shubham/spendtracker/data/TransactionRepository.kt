@@ -2,7 +2,9 @@ package com.shubham.spendtracker.data
 
 import com.shubham.spendtracker.parser.Categorizer
 import com.shubham.spendtracker.parser.Deduper
+import com.shubham.spendtracker.parser.NotificationParser
 import com.shubham.spendtracker.parser.ParsedTxn
+import com.shubham.spendtracker.parser.TxnSource
 import com.shubham.spendtracker.parser.TxnType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
@@ -126,6 +128,25 @@ class TransactionRepository(private val dao: TransactionDao) {
      * Older rows (e.g. restored from a backup) are kept, since the inbox scan can't bring them back.
      */
     suspend fun clearSmsImports(since: Long) = ingestLock.withLock { dao.deleteSmsImportsSince(since) }
+
+    /**
+     * Re-reads payments recorded from UPI app notifications with the current parser, since the SMS re-scan
+     * can't bring them back: ones it now skips (reminders) are removed, and ones it reads differently are
+     * recorded again, merging with their bank SMS. Payments with the user's notes, tags or splits stay as they are.
+     */
+    suspend fun reparseNotifications(): Int {
+        var changed = 0
+        // Rows already merged with an SMS carry the bank's reading; leave those.
+        for (row in dao.all().filter { it.source == TxnSource.NOTIFICATION && " + " !in it.sourceApp }) {
+            if (row.note != null || row.tags != null || dao.splitsFor(row.id).isNotEmpty()) continue
+            val parsed = NotificationParser.parseText(row.sourceApp, row.rawText, row.timestamp)
+            if (parsed != null && parsed.type == row.type && parsed.amountPaise == row.amountPaise && parsed.merchant == row.merchant) continue
+            ingestLock.withLock { dao.delete(row) }
+            parsed?.let { ingest(it) }
+            changed++
+        }
+        return changed
+    }
 
     suspend fun allOnce(): List<Transaction> = dao.all()
 

@@ -48,6 +48,8 @@ object Deduper {
             accountLast4 = old.accountLast4 ?: new.accountLast4,
             upiRef = old.upiRef ?: new.upiRef,
             sourceApp = if (new.sourceApp in old.sourceApp) old.sourceApp else "${old.sourceApp} + ${new.sourceApp}",
+            // The bank's SMS is the fuller record (account, balance); keep it over a UPI app's notification.
+            rawText = if (old.source == TxnSource.NOTIFICATION && new.source == TxnSource.SMS) new.rawText else old.rawText,
         )
     }
 }

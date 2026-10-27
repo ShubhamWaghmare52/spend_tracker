@@ -77,6 +77,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shubham.spendtracker.data.DailyLimit
+import com.shubham.spendtracker.data.LowBalance
 import com.shubham.spendtracker.data.Transaction
 import com.shubham.spendtracker.ingest.InboxBackfill
 import com.shubham.spendtracker.ingest.PaymentNotificationListener
@@ -204,6 +205,7 @@ class MainActivity : FragmentActivity() {
                 }
 
                 val dailyLimit by DailyLimit.limit(context).collectAsStateWithLifecycle()
+                val lowBalance by LowBalance.threshold(context).collectAsStateWithLifecycle()
                 val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
                 fun askNotificationPermission() {
                     // Limit, budget and summary alerts are notifications, which need permission on Android 13+.
@@ -357,6 +359,11 @@ class MainActivity : FragmentActivity() {
                                     DailyLimit.setLimit(context, paise)
                                     if (paise > 0) askNotificationPermission()
                                 },
+                                lowBalance = lowBalance,
+                                onSetLowBalance = { paise ->
+                                    LowBalance.setThreshold(context, paise)
+                                    if (paise > 0) askNotificationPermission()
+                                },
                                 splits = splits,
                                 actions = actions,
                                 onOpenSplits = { page = Page.SPLITS },
@@ -425,7 +432,7 @@ class MainActivity : FragmentActivity() {
         private const val SPLASH_EXIT_MS = 320L
 
         // Bump when the SMS parser improves so existing imports are re-parsed once.
-        private const val PARSER_VERSION = 10
+        private const val PARSER_VERSION = 11
 
         fun hasSms(context: Context) =
             ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
@@ -441,7 +448,10 @@ class MainActivity : FragmentActivity() {
             val app = context.spendApp
             app.appScope.launch {
                 val found = try {
-                    if (done > 0) app.repository.clearSmsImports(InboxBackfill.windowStart())
+                    if (done > 0) {
+                        app.repository.clearSmsImports(InboxBackfill.windowStart())
+                        app.repository.reparseNotifications()
+                    }
                     InboxBackfill.run(context).also {
                         // Only mark done once the re-scan finished: if the app is killed midway,
                         // the next launch runs it again instead of leaving cleared rows missing.

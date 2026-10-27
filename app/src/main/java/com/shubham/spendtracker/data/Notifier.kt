@@ -26,6 +26,7 @@ object Notifier {
         BUDGET("budgets", "Budget alerts", NotificationManager.IMPORTANCE_HIGH),
         SUMMARY("monthly_summary", "Monthly summary", NotificationManager.IMPORTANCE_DEFAULT),
         UNUSUAL("unusual_payments", "Unusual payments", NotificationManager.IMPORTANCE_HIGH),
+        LOW_BALANCE("low_balance", "Low balance alerts", NotificationManager.IMPORTANCE_HIGH),
     }
 
     fun notify(context: Context, channel: Channel, id: Int, title: String, text: String) {
@@ -62,6 +63,7 @@ object Notifier {
     suspend fun afterNewPayment(context: Context, added: List<Transaction>) {
         DailyLimit.checkAndNotify(context)
         Budgets.checkAndNotify(context)
+        LowBalance.checkAndNotify(context)
         if (added.isNotEmpty() && AppSettings.current(context).unusualAlerts) {
             val history = context.spendApp.repository.allOnce()
             added.forEach { t -> UnusualPayments.check(t, history)?.let { notifyUnusual(context, t, it) } }

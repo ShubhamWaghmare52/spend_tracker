@@ -182,4 +182,11 @@ fun sourceLabel(sourceApp: String): String =
         val code = dltSender.find(part.trim())?.groupValues?.get(1) ?: return@map part.trim()
         bankCodes.firstOrNull { code.contains(it.first) }?.second ?: code
     }.distinct().joinToString(" · ")
+
+/** The bank behind a source like "JK-BOBSMS-S + Google Pay" ("Bank of Baroda"); null for app-only sources. */
+fun bankName(sourceApp: String): String? =
+    sourceApp.split(" + ").firstNotNullOfOrNull { part ->
+        val code = dltSender.find(part.trim())?.groupValues?.get(1) ?: return@firstNotNullOfOrNull null
+        bankCodes.firstOrNull { code.contains(it.first) }?.second
+    }
 fun formatTime(ts: Long): String = Instant.ofEpochMilli(ts).atZone(ZoneId.systemDefault()).format(timeFmt)

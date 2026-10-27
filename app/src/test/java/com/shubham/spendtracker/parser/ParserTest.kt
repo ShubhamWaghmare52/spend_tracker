@@ -191,6 +191,37 @@ class NotificationParserTest {
         assertEquals("Rahul Sharma", t.merchant)
     }
 
+    @Test fun paidYouIsMoneyReceived() {
+        // Google Pay's current wording: "paid" here is the sender paying the user.
+        val t = NotificationParser.parse(gpay, "RAHUL ANIL DESHMUKH paid you ₹500.00", "Tap to view.", 1L)!!
+        assertEquals(TxnType.CREDIT, t.type)
+        assertEquals(50000L, t.amountPaise)
+        assertEquals("RAHUL ANIL DESHMUKH", t.merchant)
+
+        val older = NotificationParser.parse(gpay, "You've received a payment", "Neha Ravi Kulkarni has paid you ₹33.33", 1L)!!
+        assertEquals(TxnType.CREDIT, older.type)
+        assertEquals("Neha Ravi Kulkarni", older.merchant)
+
+        // The stored raw text re-parses the same way.
+        assertEquals(TxnType.CREDIT, NotificationParser.parseText("Google Pay", "RAHUL ANIL DESHMUKH paid you ₹300.00. Tap to view.", 1L)!!.type)
+    }
+
+    @Test fun tapToViewIsNotAPayee() {
+        val t = NotificationParser.parse(gpay, "Paid ₹250 to Swiggy", "Tap to view details", 1L)!!
+        assertEquals(TxnType.DEBIT, t.type)
+        assertEquals("Swiggy", t.merchant)
+    }
+
+    @Test fun upcomingAutopayIsOnlyAReminder() {
+        assertNull(
+            NotificationParser.parse(
+                gpay, "Upcoming Autopay payment to Google Play",
+                "Autopay payment of ₹149.00 to Google Play is scheduled for Oct 28, 2026. Make sure to have sufficient balance in your bank account. Tap to view details.",
+                1L,
+            ),
+        )
+    }
+
     @Test fun ignoresRequestsAndUnknownApps() {
         assertNull(NotificationParser.parse(gpay, "Rahul requested ₹200", "Pay now", 1L))
         assertNull(NotificationParser.parse(gpay, "You won ₹25 cashback", null, 1L))

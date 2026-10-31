@@ -1,9 +1,20 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
 }
+
+// Release signing: keystore.properties (git-ignored) on this machine, or SPEND_KEYSTORE_* environment
+// variables in CI. Without either, release builds fall back to the debug key so anyone can build from
+// source, but only APKs signed with the release key can update the published app.
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+fun signingValue(key: String, env: String): String? = keystoreProperties.getProperty(key) ?: System.getenv(env)
 
 android {
     namespace = "com.shubham.spendtracker"
@@ -17,11 +28,22 @@ android {
         versionName = "1.2"
     }
 
+    signingConfigs {
+        val storePath = signingValue("storeFile", "SPEND_KEYSTORE_FILE")
+        if (storePath != null) {
+            create("release") {
+                storeFile = rootProject.file(storePath)
+                storePassword = signingValue("storePassword", "SPEND_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "SPEND_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "SPEND_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Personal sideload build: sign with the debug key so the APK installs directly.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {

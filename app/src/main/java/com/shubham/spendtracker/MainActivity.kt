@@ -174,6 +174,7 @@ class MainActivity : FragmentActivity() {
                 }.start()
         }
         if (hasSms(this)) backfillOnce(this)
+        removeCopiesOnce(this)
 
         setContent {
             val themeMode = AppSettings.values(this).collectAsStateWithLifecycle().value?.theme ?: AppSettings.ThemeMode.SYSTEM
@@ -457,6 +458,8 @@ class MainActivity : FragmentActivity() {
     companion object {
         private const val PREFS = "spend"
         private const val KEY_PARSER_VERSION = "parser_version"
+        private const val KEY_COPIES_REPAIRED = "copies_repaired"
+        private const val COPIES_REPAIR = 1
         private const val SPLASH_MIN_MS = 750L
         private const val SPLASH_EXIT_MS = 320L
 
@@ -468,6 +471,23 @@ class MainActivity : FragmentActivity() {
 
         // One backfill at a time per process (the activity can be recreated while one is running).
         private val backfillRunning = java.util.concurrent.atomic.AtomicBoolean(false)
+
+        /**
+         * Once per install: removes payments recorded twice by restoring a backup after the inbox re-scan
+         * (fixed in 1.3.1). Runs again only if [COPIES_REPAIR] is bumped.
+         */
+        fun removeCopiesOnce(context: Context) {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            if (prefs.getInt(KEY_COPIES_REPAIRED, 0) >= COPIES_REPAIR) return
+            val app = context.spendApp
+            app.appScope.launch {
+                val removed = app.repository.removeCopies()
+                prefs.edit().putInt(KEY_COPIES_REPAIRED, COPIES_REPAIR).apply()
+                if (removed > 0) withContext(Dispatchers.Main) {
+                    Toast.makeText(context, "Removed $removed payments that were counted twice", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
 
         /** Imports the last 90 days of bank SMS on first grant, and again after a parser upgrade. */
         fun backfillOnce(context: Context) {

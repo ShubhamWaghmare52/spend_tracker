@@ -165,18 +165,46 @@ class TransactionRepository(private val dao: TransactionDao) {
         return changed
     }
 
+    /**
+     * Removes copies of the same payment (see [Deduper.copies]), keeping the user's notes, tags, splits and
+     * categories with the copy that stays. Restoring a backup after the inbox re-scan used to create them.
+     */
+    suspend fun removeCopies(): Int = ingestLock.withLock {
+        val withSplits = dao.all().filter { dao.splitsFor(it.id).isNotEmpty() }.map { it.id }.toSet()
+        val pairs = Deduper.copies(dao.all()) { it.id in withSplits }
+        var count = 0
+        for ((kept, removed) in pairs) {
+            if (removed.id in withSplits) continue
+            // A copy without the user's details may still hold the friendlier merchant or the account.
+            val filled = kept.copy(
+                merchant = kept.merchant ?: removed.merchant,
+                accountLast4 = kept.accountLast4 ?: removed.accountLast4,
+                upiRef = kept.upiRef ?: removed.upiRef,
+                note = kept.note ?: removed.note,
+                tags = kept.tags ?: removed.tags,
+            )
+            if (filled != kept) dao.update(filled)
+            dao.delete(removed)
+            count++
+        }
+        count
+    }
+
     suspend fun allOnce(): List<Transaction> = dao.all()
 
     suspend fun spentInCategorySince(category: String, from: Long): Long = dao.spentInCategorySince(category, from)
 
     /**
-     * Restores rows from a backup, skipping ones already present (same time, amount and direction).
+     * Restores rows from a backup, skipping ones already present: the same payment, even when the inbox
+     * re-scan recorded it with the phone's receive time and the backup has the bank's send time.
      * Categories the user picked are remembered for their merchants. Returns how many were added.
      */
     suspend fun importBackup(rows: List<Transaction>): Int = ingestLock.withLock {
         var added = 0
         for (row in rows) {
             if (dao.countSame(row.timestamp, row.amountPaise, row.type.name) > 0) continue
+            val near = dao.candidates(row.timestamp - Deduper.WINDOW_MS, row.timestamp + Deduper.WINDOW_MS, row.upiRef)
+            if (near.any { Deduper.sameRecord(it, row) }) continue
             dao.insert(row.copy(id = 0))
             added++
             val key = Categorizer.merchantKey(row.merchant) ?: continue

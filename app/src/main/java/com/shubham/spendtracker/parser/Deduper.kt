@@ -23,6 +23,45 @@ object Deduper {
     }
 
     /**
+     * Whether two stored rows are one payment. A payment SMS carries two times: when the bank sent it
+     * (what a live SMS broadcast reports) and when the phone received it (what an inbox re-scan reads),
+     * seconds apart, so a copy can't be recognised by its time alone. The same message text or UPI ref,
+     * the same amount and direction, within [WINDOW_MS], is the same payment. Payments added by hand all
+     * read "Added by you", so for those only an identical time counts.
+     */
+    fun sameRecord(a: Transaction, b: Transaction): Boolean {
+        if (a.type != b.type || a.amountPaise != b.amountPaise) return false
+        if (a.timestamp == b.timestamp) return true
+        if (kotlin.math.abs(a.timestamp - b.timestamp) > WINDOW_MS) return false
+        if (a.upiRef != null && a.upiRef == b.upiRef) return true
+        return a.source != TxnSource.MANUAL && b.source != TxnSource.MANUAL && a.rawText == b.rawText
+    }
+
+    /**
+     * Copies of the same payment among stored rows, as (kept, removed) pairs. The kept copy is the one
+     * carrying the user's note, tags or splits; otherwise one already merged with a UPI app's details;
+     * otherwise the one stored last (a restored backup row, with the user's own category).
+     */
+    fun copies(rows: List<Transaction>, hasSplits: (Transaction) -> Boolean = { false }): List<Pair<Transaction, Transaction>> {
+        val rank = compareBy<Transaction>(
+            { it.note != null || it.tags != null || hasSplits(it) },
+            { " + " in it.sourceApp },
+            { it.id },
+        )
+        // Group each row with the earlier copies it matches (rows are in time order, so a copy is near).
+        val sorted = rows.sortedWith(compareBy({ it.timestamp }, { it.id }))
+        val groups = mutableListOf<MutableList<Transaction>>()
+        for (row in sorted) {
+            val group = groups.lastOrNull { g -> g.any { sameRecord(it, row) } }
+            if (group != null) group += row else groups += mutableListOf(row)
+        }
+        return groups.filter { it.size > 1 }.flatMap { group ->
+            val kept = group.maxWith(rank)
+            group.filter { it !== kept }.map { kept to it }
+        }
+    }
+
+    /**
      * Rows sharing one UPI ref that include both a debit and a credit of the same amount are
      * money moving between the user's own accounts. Returns those rows, or empty.
      */

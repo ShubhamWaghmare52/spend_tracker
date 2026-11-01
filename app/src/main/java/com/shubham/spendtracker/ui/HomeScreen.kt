@@ -160,11 +160,11 @@ fun HomeScreen(
     var detailId by remember { mutableStateOf<Long?>(null) }
 
     val periodStart = startOf(period)
-    val inPeriod = remember(txns, period) { txns.filter { it.timestamp >= periodStart && it.category != Categorizer.SELF } }
+    val inPeriod = remember(txns, periodStart) { txns.filter { it.timestamp >= periodStart && it.category != Categorizer.SELF } }
     val spent = inPeriod.filter(::isSpend)
     val spentTotal = spent.sumOf { it.amountPaise }
     val receivedTotal = inPeriod.filter { it.type == TxnType.CREDIT }.sumOf { it.amountPaise }
-    val prevTotal = remember(txns, period) {
+    val prevTotal = remember(txns, periodStart) {
         val (from, to) = previousWindow(period)
         txns.filter { it.timestamp in from until to && isSpend(it) }.sumOf { it.amountPaise }
     }

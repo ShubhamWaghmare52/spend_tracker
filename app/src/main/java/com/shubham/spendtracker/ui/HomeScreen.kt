@@ -75,6 +75,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
 import kotlin.math.abs
 
 enum class Period(val label: String, val noun: String) {
@@ -89,7 +90,7 @@ private fun Long.toDate() = Instant.ofEpochMilli(this).atZone(zone).toLocalDate(
 
 private fun startDate(period: Period, today: LocalDate = LocalDate.now()) = when (period) {
     Period.TODAY -> today
-    Period.WEEK -> today.with(DayOfWeek.MONDAY)
+    Period.WEEK -> today.with(TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY))
     Period.MONTH -> today.withDayOfMonth(1)
 }
 
@@ -111,7 +112,7 @@ internal fun ringTarget(period: Period, dailyLimit: Long, today: LocalDate = Loc
     return RingTarget(dailyLimit * days, elapsed.toFloat() / days)
 }
 
-/** The same stretch of time one period earlier, e.g. Monday–now of last week. */
+/** The same stretch of time one period earlier, e.g. Sunday–now of last week. */
 private fun previousWindow(period: Period): Pair<Long, Long> {
     val start = startDate(period)
     val prev = when (period) {

@@ -14,12 +14,12 @@ class RingTargetTest {
         assertNull(t.pace)
     }
 
-    @Test fun weekIsSevenDailyLimitsPacedFromMonday() {
+    @Test fun weekIsSevenDailyLimitsPacedFromSunday() {
         val t = ringTarget(Period.WEEK, 50_000, wed)
         assertEquals(350_000L, t.limit)
-        assertEquals(3f / 7, t.pace!!, 1e-6f)
-        assertEquals(1f / 7, ringTarget(Period.WEEK, 50_000, LocalDate.of(2026, 10, 19)).pace!!, 1e-6f)
-        assertEquals(1f, ringTarget(Period.WEEK, 50_000, LocalDate.of(2026, 10, 25)).pace!!, 1e-6f)
+        assertEquals(4f / 7, t.pace!!, 1e-6f)
+        assertEquals(1f / 7, ringTarget(Period.WEEK, 50_000, LocalDate.of(2026, 10, 18)).pace!!, 1e-6f)
+        assertEquals(1f, ringTarget(Period.WEEK, 50_000, LocalDate.of(2026, 10, 24)).pace!!, 1e-6f)
     }
 
     @Test fun monthUsesItsOwnLength() {

@@ -351,6 +351,7 @@ class MainActivity : FragmentActivity() {
                                 versionName = BuildConfigVersion.name(context),
                                 onToggleLock = { on -> setAppLock(on) },
                                 onToggleHideAmounts = { on -> AppSettings.update(context) { it.copy(hideAmounts = on) } },
+                                onToggleShowBalances = { on -> AppSettings.update(context) { it.copy(showBalances = on) } },
                                 onToggleUnusualAlerts = { on ->
                                     AppSettings.update(context) { it.copy(unusualAlerts = on) }
                                     if (on) askNotificationPermission()
@@ -364,6 +365,7 @@ class MainActivity : FragmentActivity() {
                                 onIntroStarted = { introPlayed = true },
                                 amountsHidden = settings?.hideAmounts == true,
                                 onToggleHidden = { AppSettings.update(context) { it.copy(hideAmounts = !it.hideAmounts) } },
+                                showBalances = settings?.showBalances != false,
                                 budgets = budgets.orEmpty(),
                                 onOpenSort = { page = Page.SORT },
                                 smsGranted = smsGranted,

@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,6 +47,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -54,6 +56,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.shubham.spendtracker.data.DailyLimit
@@ -135,6 +138,7 @@ fun HomeScreen(
     onIntroStarted: () -> Unit,
     amountsHidden: Boolean,
     onToggleHidden: () -> Unit,
+    showBalances: Boolean,
     budgets: Map<String, Long>,
     onOpenSort: () -> Unit,
     smsGranted: Boolean,
@@ -248,7 +252,7 @@ fun HomeScreen(
 
         // Bank balances from the SMS, with the low-balance alert amount
         val balances = remember(txns) { Balances.latest(txns) }
-        if (balances.isNotEmpty()) {
+        if (showBalances && balances.isNotEmpty()) {
             Entrance(2, playIntro) {
                 BalancesCard(balances, lowBalance, onEditAlert = { editingLowBalance = true })
             }
@@ -292,15 +296,17 @@ fun HomeScreen(
                     if (idx in 0 until days) perDay[idx] += it.amountPaise
                 }
                 val todayIdx = ChronoUnit.DAYS.between(start, LocalDate.now()).toInt()
-                val labels = List(days) { i ->
-                    if (period == Period.WEEK) start.plusDays(i.toLong()).dayOfWeek.name.take(3).lowercase().replaceFirstChar(Char::uppercase)
-                    else if (i % 7 == 0) "${i + 1}" else ""
+                val openDay = { i: Int ->
+                    selectedBar = i
+                    val day = start.plusDays(i.toLong())
+                    listQuery = PaymentQuery(day.format(longDayFmt), day.millis(), day.plusDays(1).millis())
                 }
-                SectionCard("Daily spending", subtitle = "Tap a bar to see that day") {
-                    BarChart(perDay, labels, todayIdx, selectedBar, growth::value) { i ->
-                        selectedBar = i
-                        val day = start.plusDays(i.toLong())
-                        listQuery = PaymentQuery(day.format(longDayFmt), day.millis(), day.plusDays(1).millis())
+                SectionCard("Daily spending", subtitle = if (period == Period.WEEK) "Tap a bar to see that day" else "Tap a day to see its payments") {
+                    if (period == Period.WEEK) {
+                        val labels = List(days) { i -> start.plusDays(i.toLong()).dayOfWeek.name.take(3).lowercase().replaceFirstChar(Char::uppercase) }
+                        BarChart(perDay, labels, todayIdx, selectedBar, growth::value, openDay)
+                    } else {
+                        CalendarHeatmap(perDay, start, todayIdx, selectedBar, growth::value, openDay)
                     }
                     val avgDays = (todayIdx + 1).coerceAtLeast(1)
                     Row(Modifier.fillMaxWidth()) {
@@ -501,6 +507,97 @@ private fun BarChart(
                 val tx = (i * slot + slot / 2 - m.size.width / 2).coerceIn(0f, size.width - m.size.width)
                 drawText(m, topLeft = Offset(tx, size.height - labelH + 4.dp.toPx()))
             }
+        }
+    }
+}
+
+/** Calendar cells are wider than tall so a whole month fits without dominating the screen. */
+private const val CellHeight = 0.62f
+
+/**
+ * A month as a Sunday-first calendar, each day shaded by how much was spent. Square-root scaling keeps
+ * one big day from washing out the rest; today is ringed and days still to come are left blank.
+ */
+@Composable
+private fun CalendarHeatmap(
+    values: LongArray,
+    start: LocalDate,
+    todayIndex: Int,
+    selected: Int?,
+    growth: () -> Float,
+    onTap: (Int) -> Unit,
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    val onPrimary = MaterialTheme.colorScheme.onPrimary
+    val empty = MaterialTheme.colorScheme.surfaceContainerHighest
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val measurer = rememberTextMeasurer()
+    val dayStyle = MaterialTheme.typography.labelSmall
+    val offset = start.dayOfWeek.value % 7 // Sunday = 0
+    val rows = (offset + values.size + 6) / 7
+    val max = (values.maxOrNull() ?: 0L).coerceAtLeast(1L)
+    fun shade(v: Long) = if (v == 0L) 0f else 0.25f + 0.75f * kotlin.math.sqrt(v.toFloat() / max)
+
+    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth()) {
+            listOf("S", "M", "T", "W", "T", "F", "S").forEach {
+                Text(it, Modifier.weight(1f), style = dayStyle, color = muted, textAlign = TextAlign.Center)
+            }
+        }
+        Canvas(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(7f / (rows * CellHeight))
+                .pointerInput(values.size, todayIndex, offset) {
+                    detectTapGestures { o ->
+                        val cell = size.width / 7f
+                        val col = (o.x / cell).toInt().coerceIn(0, 6)
+                        val row = (o.y / (cell * CellHeight)).toInt().coerceIn(0, rows - 1)
+                        val i = row * 7 + col - offset
+                        if (i in 0..minOf(todayIndex, values.size - 1)) onTap(i)
+                    }
+                },
+        ) {
+            val cell = size.width / 7f
+            val gap = 4.dp.toPx()
+            val rowH = cell * CellHeight
+            val cellSize = Size(cell - gap, rowH - gap)
+            val radius = CornerRadius(8.dp.toPx())
+            // Days fade in down the calendar, each a little after the one before.
+            val g = growth()
+            val spread = 10f
+            values.forEachIndexed { i, v ->
+                val slot = i + offset
+                val topLeft = Offset((slot % 7) * cell + gap / 2, (slot / 7) * rowH + gap / 2)
+                val p = ((g * (values.size + spread) - i) / spread).coerceIn(0f, 1f)
+                val future = i > todayIndex
+                val s = shade(v)
+                val fill = when {
+                    future -> empty.copy(alpha = 0.35f)
+                    s == 0f -> empty
+                    selected != null && selected != i -> primary.copy(alpha = s * 0.45f)
+                    else -> primary.copy(alpha = s)
+                }
+                drawRoundRect(fill.copy(alpha = fill.alpha * p), topLeft, cellSize, radius)
+                if (i == todayIndex || i == selected) {
+                    drawRoundRect(onSurface, topLeft, cellSize, radius, style = Stroke(2.dp.toPx()))
+                }
+                val textColor = when {
+                    future -> muted.copy(alpha = 0.5f)
+                    s > 0.6f && (selected == null || selected == i) -> onPrimary
+                    else -> onSurface
+                }
+                val m = measurer.measure("${i + 1}", dayStyle.copy(color = textColor))
+                drawText(m, topLeft = Offset(topLeft.x + (cellSize.width - m.size.width) / 2, topLeft.y + (cellSize.height - m.size.height) / 2))
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Less", style = dayStyle, color = muted)
+            listOf(0f, 0.4f, 0.7f, 1f).forEach { a ->
+                Box(Modifier.size(10.dp).background(if (a == 0f) empty else primary.copy(alpha = a), RoundedCornerShape(3.dp)))
+            }
+            Text("More", style = dayStyle, color = muted)
         }
     }
 }

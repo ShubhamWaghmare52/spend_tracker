@@ -33,6 +33,7 @@ fun SettingsScreen(
     versionName: String,
     onToggleLock: (Boolean) -> Unit,
     onToggleHideAmounts: (Boolean) -> Unit,
+    onToggleShowBalances: (Boolean) -> Unit,
     onToggleUnusualAlerts: (Boolean) -> Unit,
     onThemeChange: (AppSettings.ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
@@ -76,6 +77,12 @@ fun SettingsScreen(
                 "🙈", "Hide amounts",
                 "Show amounts as ₹•••• in the app and widget. Tap the eye on the Overview to switch quickly.",
                 settings.hideAmounts, onToggleHideAmounts,
+            )
+            Divider()
+            ToggleRow(
+                "🏦", "Show bank balances",
+                "Show the balance of each bank account on the Overview. Low-balance alerts still work when this is off.",
+                settings.showBalances, onToggleShowBalances,
             )
         }
         Spacer(Modifier.height(16.dp))

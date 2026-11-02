@@ -32,8 +32,8 @@ jobs:
       - name: Unit tests
         run: ./gradlew :app:testDebugUnitTest
 
-      # Tags are published, so they must be signed with the release key (repository secrets).
-      # Other builds fall back to the debug key when the secrets aren't there.
+      # Signs with the release key when the repository secrets are there; otherwise the build falls
+      # back to the debug key and a tag isn't published (releases are then signed and uploaded by hand).
       - name: Release key
         env:
           KEYSTORE_BASE64: ${{ secrets.SPEND_KEYSTORE_BASE64 }}
@@ -41,8 +41,9 @@ jobs:
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
             echo "SPEND_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+            echo "RELEASE_KEY=true" >> "$GITHUB_ENV"
           elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "::error::SPEND_KEYSTORE_BASE64 is not set; refusing to publish a debug-signed release." && exit 1
+            echo "::notice::SPEND_KEYSTORE_BASE64 is not set; building with the debug key and not publishing this tag."
           fi
 
       - name: Build release APK
@@ -63,7 +64,7 @@ jobs:
           path: SpendTracker.apk
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') && env.RELEASE_KEY == 'true'
         uses: softprops/action-gh-release@v2
         with:
           files: SpendTracker.apk

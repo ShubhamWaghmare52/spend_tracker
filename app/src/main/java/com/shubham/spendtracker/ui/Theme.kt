@@ -170,7 +170,7 @@ fun categoryEmoji(category: String): String = categoryEmojis[category] ?: "💳"
 
 private val bankCodes = listOf(
     "HDFC" to "HDFC Bank", "SBI" to "SBI", "ICICI" to "ICICI Bank", "AXIS" to "Axis Bank", "KOTAK" to "Kotak",
-    "BOB" to "Bank of Baroda", "BARB" to "Bank of Baroda", "JIOPBS" to "Jio Payments Bank", "JUSPAY" to "Amazon Pay",
+    "BOB" to "Bank of Baroda", "BARB" to "Bank of Baroda", "JIOPBS" to "Jio Payments Bank", "IPPB" to "India Post Payments Bank", "JUSPAY" to "Amazon Pay",
     "AIRTEL" to "Airtel Payments Bank", "PNB" to "PNB", "CANBNK" to "Canara Bank", "UNION" to "Union Bank",
     "IDFC" to "IDFC First", "INDUS" to "IndusInd", "YESB" to "Yes Bank", "PAYTM" to "Paytm", "LNTFIN" to "L&T Finance",
 )

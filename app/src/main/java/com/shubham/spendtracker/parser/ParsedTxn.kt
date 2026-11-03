@@ -20,7 +20,7 @@ data class ParsedTxn(
 /** Regex helpers shared by the SMS and notification parsers. */
 internal object ParseUtils {
     private val amountRegex =
-        Regex("""(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
+        Regex("""(?:rs\.?|inr|₹)\s*:?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""", RegexOption.IGNORE_CASE)
 
     // Amounts preceded by these words are balances/limits, not the payment itself.
     private val notPaymentAmount = Regex("""(bal|balance|limit|avl|available)[^0-9]{0,12}$""", RegexOption.IGNORE_CASE)
@@ -47,16 +47,16 @@ internal object ParseUtils {
             .minByOrNull { it.second }?.first
 
     private val stopAhead =
-        """(?=\s+(?:on|ref|refno|upi|via|using|for|avl|if|not|txn|thru|dated|at|of|with|is|has|was|from|by|utr|total|bal|dr|cr|call)\b|\s*[,;()|]|\.\s|\.?$|\s+\d{2}[-/])"""
+        """(?=\s+(?:on|ref|refno|upi|via|using|for|avl|if|not|txn|thru|dated|at|of|with|is|has|was|from|by|utr|total|bal|dr|cr|call)\b|\s*[,;()|]|\.(?=(?:rrn|ref|avl|bal|upi)\b)|\.\s|\.?$|\s+\d{2}[-/])"""
 
     private val skipCandidate = Regex(
-        """^(?:your\b|a/?c\b|ac\b|acct|account|card|you\b|xx|\*|x\d|\d{1,2}[-/]|the\b|bank\b|upi\b|imps\b|neft\b|rtgs\b|\d+$)""",
+        """^(?:your\b|a/?c\b|ac\b|acct|account|card|you\b|xx|\*|x\d|\d{1,2}[-/]|the\b|bank\b|upi\b|imps\b|neft\b|rtgs\b|\d+$|rs\.?\s*:?\s*\d|inr\b|₹)""",
         RegexOption.IGNORE_CASE,
     )
 
     // Trailing noise banks append after the payee name.
     private val partyNoise = Regex(
-        """\s*(?:\bnot you\b|\butr\b|\bcall\b|\bavl\b|\btotal bal|\s(?:dr|cr)\s*-|-\s*t?x{3,}|\bx{4,}).*$""",
+        """\s*(?:\bnot you\b|\butr\b|\bcall\b|\bavl\b|\btotal bal|\s(?:dr|cr)\s*-|-\s*t?x{3,}|\bx{4,}|\bvalue\s+\d).*$""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -82,7 +82,20 @@ internal object ParseUtils {
 
     fun findInfoParty(text: String): String? = infoField.find(text)?.groupValues?.get(1)?.let(::cleanParty)
 
-    private val upiInfo = Regex("""upi/(?:p2m|p2a|cr|dr)?/?(\d{9,16})/([^/\n.|]+)""", RegexOption.IGNORE_CASE)
+    // ICICI / IDFC: "debited for Rs 349.00 on 02-Nov-26; ZEPTO MARKETPLACE credited."
+    private val creditedParty = Regex("""[;,]\s*([A-Za-z][A-Za-z0-9 .&'*_\-]{1,40}?)\s+credited\b""", RegexOption.IGNORE_CASE)
+
+    fun findCreditedParty(text: String): String? = creditedParty.find(text)?.groupValues?.get(1)?.let(::cleanParty)
+
+    // ICICI cards: "spent using ICICI Bank Card XX6623 on 01-Nov-26 on IND*BIGBASKET."
+    private val cardOnDateOn = Regex(
+        """\bon\s+\d{1,2}-[A-Za-z]{3}-\d{2,4}\s+on\s+([A-Za-z0-9*][^.]{1,40}?)(?=\.\s|\.?$)""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    fun findCardOnParty(text: String): String? = cardOnDateOn.find(text)?.groupValues?.get(1)?.let(::cleanParty)
+
+    private val upiInfo = Regex("""upi/(?:p2m|p2a|cr|dr)?/?(\d{9,16})/([^/\n\r.|]+)""", RegexOption.IGNORE_CASE)
     private val refRegex = Regex(
         """(?:ref(?:erence)?\.?\s*(?:no\.?|number|#|id)?|refno|rrn|utr|\bupi)[\s:.\-]*(\d{6,16})""",
         RegexOption.IGNORE_CASE,

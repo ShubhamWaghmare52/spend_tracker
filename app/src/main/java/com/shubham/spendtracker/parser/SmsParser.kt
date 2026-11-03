@@ -13,7 +13,7 @@ object SmsParser {
     // The card company confirming a bill payment: the money left the user's bank (already
     // recorded there) and moved to their card. It's neither income nor new spending.
     private val cardBillAck = Regex(
-        """\breceived\b[^.]{0,40}\btowards\b[^.]{0,30}\b(credit card|card (account|ending)|cc)\b""",
+        """\b(?:received|credited)\b[^.]{0,40}\btowards\b[^.]{0,30}\b(credit card|card (account|ending)|cc)\b""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -21,17 +21,19 @@ object SmsParser {
     private val promoSender = Regex("""-P$""", RegexOption.IGNORE_CASE)
 
     // A real alert mentions some account instrument.
-    private val bankContext = Regex("""\b(a/?c|acct|account|card|upi|vpa|bank|imps|neft|rtgs|atm|wallet)\b""", RegexOption.IGNORE_CASE)
+    private val bankContext = Regex("""\b(a/?c|acct|account|card|upi|vpa|bank|imps|neft|rtgs|atm|wallet|cc)\b""", RegexOption.IGNORE_CASE)
 
-    // Bare "debit"/"credit" count only right before an amount (IPPB: "A/C X1234 Debit Rs.250.00 for UPI to …"):
+    // Bare "debit"/"credit" count only right before an amount (IPPB: "A/C X1234 Debit Rs.250.00 for UPI to …",
+    // SBI: "has a debit by transfer of Rs 2,000", India Post: "CREDIT with amount Rs. 1550"):
     // on their own they appear in "Credit Card" and "Debit Card" ads.
     // "Dr."/"Cr." are BOB's shorthand ("Rs.2.00 Dr. from A/C … and Cr. to …"); \b keeps "100.00CR" balances out.
-    private const val AMOUNT_AHEAD = """(?=\s*(?:of\s+)?(?:rs\.?|inr|₹)\s*\d)"""
+    private const val AMOUNT_AHEAD =
+        """(?=\s*(?:of\s+|with\s+(?:amount\s+)?|by\s+(?:transfer\s+)?(?:of\s+)?)?(?:rs\.?|inr|₹)\s*:?\s*\d)"""
     private val debit = Regex("""\b(debited|spent|paid|sent|withdrawn|purchase|transferred|dr|debit$AMOUNT_AHEAD)\b""", RegexOption.IGNORE_CASE)
     private val credit = Regex("""\b(credited|received|deposited|refund(?:ed)?|credit alert|cr|credit$AMOUNT_AHEAD)\b""", RegexOption.IGNORE_CASE)
 
     private val account = Regex(
-        """(?:a/?c|acct|account|card)\s*(?:no\.?)?\s*(?:ending\s*(?:with|in)?\s*)?[xX*.\s]*(\d{3,6})\b""",
+        """(?:a/?c|acct|account|card|\bcc)\s*(?:no\.?)?\s*(?:ending\s*(?:with|in)?\s*)?[xXnN*.\s]*(\d{3,6})\b""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -48,9 +50,12 @@ object SmsParser {
         val type = ParseUtils.earliest(text, TxnType.DEBIT to debit, TxnType.CREDIT to credit) ?: return null
         val amount = ParseUtils.findAmountPaise(text) ?: return null
 
-        val info = ParseUtils.findUpiInfo(text)
+        // Line breaks end a name ("UPI/P2A/…/PRIYA S\nAxis Bank"), so read UPI details from the original lines.
+        val info = ParseUtils.findUpiInfo(body) ?: ParseUtils.findUpiInfo(text)
         val preps = if (type == TxnType.DEBIT) listOf("to", "at", "towards", "trf to") else listOf("from", "by")
-        val merchant = info?.second ?: ParseUtils.findParty(text, preps) ?: ParseUtils.findInfoParty(text)
+        val merchant = info?.second ?: ParseUtils.findParty(text, preps)
+            ?: (if (type == TxnType.DEBIT) ParseUtils.findCreditedParty(text) ?: ParseUtils.findCardOnParty(text) else null)
+            ?: ParseUtils.findInfoParty(text)
             ?: if (apayWallet.containsMatchIn(text)) "Amazon Pay" else null
 
         return ParsedTxn(

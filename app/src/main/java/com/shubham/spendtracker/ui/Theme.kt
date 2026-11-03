@@ -173,6 +173,15 @@ private val bankCodes = listOf(
     "BOB" to "Bank of Baroda", "BARB" to "Bank of Baroda", "JIOPBS" to "Jio Payments Bank", "IPPB" to "India Post Payments Bank", "JUSPAY" to "Amazon Pay",
     "AIRTEL" to "Airtel Payments Bank", "PNB" to "PNB", "CANBNK" to "Canara Bank", "UNION" to "Union Bank",
     "IDFC" to "IDFC First", "INDUS" to "IndusInd", "YESB" to "Yes Bank", "PAYTM" to "Paytm", "LNTFIN" to "L&T Finance",
+    "BOIIND" to "Bank of India", "INDBNK" to "Indian Bank", "IOB" to "Indian Overseas Bank", "UCO" to "UCO Bank",
+    "CENTBK" to "Central Bank of India", "MAHABK" to "Bank of Maharashtra", "IDBI" to "IDBI Bank", "PSBANK" to "Punjab & Sind Bank",
+    "FEDBNK" to "Federal Bank", "SIBSMS" to "South Indian Bank", "KBLBNK" to "Karnataka Bank", "KVBANK" to "Karur Vysya Bank",
+    "TMBANK" to "TMB", "CUBANK" to "City Union Bank", "DHANBK" to "Dhanlaxmi Bank", "SARBNK" to "Saraswat Bank",
+    "JKBANK" to "J&K Bank", "RBLBNK" to "RBL Bank", "SCBANK" to "Standard Chartered", "DBSBNK" to "DBS Bank",
+    "HSBC" to "HSBC", "CITI" to "Citibank", "AUBANK" to "AU Small Finance Bank", "EQUTAS" to "Equitas",
+    "UJJIVN" to "Ujjivan", "JANABK" to "Jana Bank", "BANDHN" to "Bandhan Bank", "SSFBNK" to "Suryoday Bank",
+    "ESAFBK" to "ESAF Bank", "UTKSFB" to "Utkarsh Bank", "AIRBNK" to "Airtel Payments Bank", "FINOBK" to "Fino Payments Bank",
+    "NSDLPB" to "NSDL Payments Bank", "DOPBNK" to "India Post", "SLICE" to "slice",
 )
 private val dltSender = Regex("""^[A-Z]{2}-([A-Z0-9]+)(?:-[A-Z])?$""")
 

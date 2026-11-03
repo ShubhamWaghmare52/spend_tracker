@@ -155,6 +155,24 @@ class SmsParserTest {
         assertTrue(Categorizer.isCardBillPayment(TxnType.DEBIT, "INR 3,000 debited for HDFC credit card dues via NetBanking"))
     }
 
+    @Test fun ippbBareDebitAndCredit() {
+        val t = sms("A/C X4821 Debit Rs.150.00 for UPI to shankar anna p on 24-10-26 Ref 666364638461. Avl Bal Rs.2,310.45. If not you? SMS FREEZE \"full a/c\" to 7669300000-IPPB", "AX-IPPBMB-S")!!
+        assertEquals(15000L, t.amountPaise)
+        assertEquals(TxnType.DEBIT, t.type)
+        assertEquals("shankar anna p", t.merchant)
+        assertEquals("4821", t.accountLast4)
+        assertEquals("666364638461", t.upiRef)
+
+        val c = sms("A/C X4821 Credit Rs.500.00 for UPI from ravi kumar on 24-10-26 Ref 666364638462. Avl Bal Rs.2,810.45 -IPPB", "AX-IPPBMB-S")!!
+        assertEquals(50000L, c.amountPaise)
+        assertEquals(TxnType.CREDIT, c.type)
+        assertEquals("ravi kumar", c.merchant)
+    }
+
+    @Test fun bareDebitCreditWithoutAnAmountStayIgnored() {
+        assertNull(sms("Upgrade your Debit Card today and enjoy Credit benefits on your account", "AX-IPPBMB-S"))
+    }
+
     @Test fun futureRefundsAreIgnoredUntilTheyArrive() {
         assertNull(sms("Refund of Rs 499 will be credited to your A/c XX1234 in 3-5 working days", "AD-HDFCBK-S"))
     }

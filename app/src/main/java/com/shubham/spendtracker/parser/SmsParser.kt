@@ -23,10 +23,12 @@ object SmsParser {
     // A real alert mentions some account instrument.
     private val bankContext = Regex("""\b(a/?c|acct|account|card|upi|vpa|bank|imps|neft|rtgs|atm|wallet)\b""", RegexOption.IGNORE_CASE)
 
-    // Bare "debit"/"credit" are left out: they appear in "Credit Card" and "Debit Card" ads.
+    // Bare "debit"/"credit" count only right before an amount (IPPB: "A/C X1234 Debit Rs.250.00 for UPI to …"):
+    // on their own they appear in "Credit Card" and "Debit Card" ads.
     // "Dr."/"Cr." are BOB's shorthand ("Rs.2.00 Dr. from A/C … and Cr. to …"); \b keeps "100.00CR" balances out.
-    private val debit = Regex("""\b(debited|spent|paid|sent|withdrawn|purchase|transferred|dr)\b""", RegexOption.IGNORE_CASE)
-    private val credit = Regex("""\b(credited|received|deposited|refund(?:ed)?|credit alert|cr)\b""", RegexOption.IGNORE_CASE)
+    private const val AMOUNT_AHEAD = """(?=\s*(?:of\s+)?(?:rs\.?|inr|₹)\s*\d)"""
+    private val debit = Regex("""\b(debited|spent|paid|sent|withdrawn|purchase|transferred|dr|debit$AMOUNT_AHEAD)\b""", RegexOption.IGNORE_CASE)
+    private val credit = Regex("""\b(credited|received|deposited|refund(?:ed)?|credit alert|cr|credit$AMOUNT_AHEAD)\b""", RegexOption.IGNORE_CASE)
 
     private val account = Regex(
         """(?:a/?c|acct|account|card)\s*(?:no\.?)?\s*(?:ending\s*(?:with|in)?\s*)?[xX*.\s]*(\d{3,6})\b""",

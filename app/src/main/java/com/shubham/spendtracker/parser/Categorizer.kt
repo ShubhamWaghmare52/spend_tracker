@@ -54,7 +54,7 @@ object Categorizer {
             """\btowards\b[^.]{0,40}(credit card|\bcc\b)""",
         RegexOption.IGNORE_CASE,
     )
-    // ATM/cash withdrawals: "Withdrawn Rs.500 From HDFC Bank Card x5090 At KOLHAPUR BR".
+    // ATM/cash withdrawals: "Withdrawn Rs.500 From HDFC Bank Card x6621 At PUNE BR".
     private val cashWithdrawal = Regex(
         """\bwithdrawn\b.{0,60}?\b(card|atm)\b|\b(atm|cash)\s+(withdrawal|wdl)\b""",
         RegexOption.IGNORE_CASE,
@@ -112,7 +112,7 @@ object Categorizer {
         if (!personName.matches(m) || messrs.containsMatchIn(m)) return false
         val words = m.lowercase().split(' ')
         if (words.any { it in businessWords }) return false
-        // Banks cut long payee names short ("SHREE DHANLAXMI SWEE", "… DUDH KENDR"): a last word that
+        // Banks cut long payee names short ("SHREE GAJANAN SWEE", "… DUDH KENDR"): a last word that
         // starts a business word is taken as one.
         val last = words.last()
         return last.length < 4 || businessWords.none { it.length > last.length && it.startsWith(last) }

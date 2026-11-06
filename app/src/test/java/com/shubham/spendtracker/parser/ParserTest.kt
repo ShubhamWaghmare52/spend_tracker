@@ -318,41 +318,41 @@ class DedupeAndCategoryTest {
     @Test fun longDottedMerchantVpa() {
         val t = SmsParser.parse(
             "JK-BOBSMS-S",
-            "Rs.200.00 Dr. from A/C XXXXXX1319 and Cr. to someshoptrustministries.eazypay@icici. Ref:622199957189. AvlBal:Rs1034.50(2026:08:10 09:21:06). Not you? Call 18005700/5000-BOB",
+            "Rs.200.00 Dr. from A/C XXXXXX7421 and Cr. to someshoptrustministries.eazypay@icici. Ref:600000000189. AvlBal:Rs2210.00(2026:08:10 09:21:06). Not you? Call 18005700/5000-BOB",
             0L,
         )!!
         assertEquals("someshoptrustministries.eazypay@icici", t.merchant)
-        assertEquals("622199957189", t.upiRef)
+        assertEquals("600000000189", t.upiRef)
     }
 
     @Test fun atmWithdrawalIsCash() {
-        val raw = "Withdrawn Rs.500 From HDFC Bank Card x5090 At KOLHAPUR BR On 2026-09-24:16:02:32 Bal Rs.1.8 Not You? Call 18002586161/SMS BLOCK DC 5090 to 7308080808"
+        val raw = "Withdrawn Rs.500 From HDFC Bank Card x6621 At PUNE BR On 2026-09-24:16:02:32 Bal Rs.1.8 Not You? Call 18002586161/SMS BLOCK DC 6621 to 7308080808"
         val t = SmsParser.parse("AD-HDFCBK-S", raw, 0L)!!
         assertEquals(TxnType.DEBIT, t.type)
         assertEquals("Cash", Categorizer.categorize(t.type, t.merchant, t.rawText))
         assertEquals("Cash", Categorizer.categorize(TxnType.DEBIT, null, "Rs 2000 debited from A/c XX12 for ATM withdrawal at SBI"))
-        assertEquals("Groceries", Categorizer.categorize(TxnType.DEBIT, "STAR BAZAAR", "Sent Rs.300 From HDFC Bank A/C *4842 To STAR BAZAAR"))
+        assertEquals("Groceries", Categorizer.categorize(TxnType.DEBIT, "STAR BAZAAR", "Sent Rs.300 From HDFC Bank A/C *3156 To STAR BAZAAR"))
     }
 
     @Test fun personNamesAreTransfers() {
-        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "PALANGE SARITA KISAN", ""))
-        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "Mr SUHAS ASHOK KADAM", ""))
-        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "manishbagade2-3@okaxis", ""))
-        assertEquals("Food", Categorizer.categorize(TxnType.DEBIT, "Jaswant sweets", ""))
-        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "Jai Raj Auto Corner", ""))
-        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "M S ANKIT SAJWAN MINISTRI", ""))
+        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "PAWAR MEENA RAMESH", ""))
+        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "Mr NITIN RAVI JADHAV", ""))
+        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "rohitpawar7-3@okaxis", ""))
+        assertEquals("Food", Categorizer.categorize(TxnType.DEBIT, "Ganesh sweets", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "Shree Ram Auto Corner", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "M S RAJ KIRAN MINISTRI", ""))
         assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "OM SAI ENTERPRISES", ""))
-        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "gpay-12190566913@okbizaxis", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "gpay-11111111111@okbizaxis", ""))
         // Shops whose names look like people's, often cut short by the bank.
-        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "SHREE DHANLAXMI SWEE", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "SHREE GAJANAN SWEE", ""))
         assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "Soundbox Upfront Collecti", ""))
-        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "Amit Shope", ""))
-        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "UNIT WELFARE FUND KOLHAPU", ""))
-        assertEquals("Groceries", Categorizer.categorize(TxnType.DEBIT, "SHOBHAAI BHAJI DUDH KENDR", ""))
-        assertEquals("Food", Categorizer.categorize(TxnType.DEBIT, "Narayani Tea Stall", ""))
-        assertEquals("Food", Categorizer.categorize(TxnType.DEBIT, "Shri mahalaxmi bhellpuri", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "Sunil Shope", ""))
+        assertEquals("Other", Categorizer.categorize(TxnType.DEBIT, "UNIT WELFARE FUND NASHIK", ""))
+        assertEquals("Groceries", Categorizer.categorize(TxnType.DEBIT, "LAXMI BHAJI DUDH KENDR", ""))
+        assertEquals("Food", Categorizer.categorize(TxnType.DEBIT, "Krishna Tea Stall", ""))
+        assertEquals("Food", Categorizer.categorize(TxnType.DEBIT, "Shri ganesh bhellpuri", ""))
         assertEquals("Entertainment", Categorizer.categorize(TxnType.DEBIT, "District Movies", ""))
-        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "DEEPAK SADASHIV BHAR", ""))
+        assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "SURESH MADHAV KULK", ""))
     }
 
     @Test fun paymentsToOwnPayeesAreSelfTransfers() {
@@ -376,11 +376,11 @@ class DedupeAndCategoryTest {
             sourceApp = "AD-HDFCBK-S", timestamp = 0L, upiRef = ref, category = Categorizer.SELF, rawText = raw,
         )
         val rows = listOf(
-            self(1, TxnType.DEBIT, "rahulsharma52-3@okaxis", "111", "Rs.200.00 Dr. from A/C XXXXXX1319 and Cr. to rahulsharma52-3@okaxis"),
+            self(1, TxnType.DEBIT, "rahulsharma52-3@okaxis", "111", "Rs.200.00 Dr. from A/C XXXXXX7421 and Cr. to rahulsharma52-3@okaxis"),
             self(2, TxnType.CREDIT, "rahulsharma52-2@okaxis", "111", "Credit Alert! Rs.200.00 credited from VPA rahulsharma52-2@okaxis"),
             // A failed payment to a friend and its reversal share a ref.
-            self(3, TxnType.DEBIT, "AMIT KUMAR PATIL", "222", "Sent Rs.200.00 To AMIT KUMAR PATIL Ref 222"),
-            self(4, TxnType.CREDIT, null, "222", "Rs.200.00 credited to A/c XX4842 towards reversal of UPI Ref 222"),
+            self(3, TxnType.DEBIT, "ROHAN KUMAR DESAI", "222", "Sent Rs.200.00 To ROHAN KUMAR DESAI Ref 222"),
+            self(4, TxnType.CREDIT, null, "222", "Rs.200.00 credited to A/c XX3156 towards reversal of UPI Ref 222"),
             // Same for a shop.
             self(5, TxnType.DEBIT, "SWIGGY", "333", "Sent Rs.200.00 To SWIGGY Ref 333"),
             self(6, TxnType.CREDIT, "SWIGGY", "333", "Refund of Rs.200.00 credited, UPI Ref 333"),
@@ -393,7 +393,7 @@ class DedupeAndCategoryTest {
     @Test fun loansSipsAndSubscriptions() {
         val emi = SmsParser.parse(
             "AD-HDFCBK-S",
-            "UPDATE: INR 5,263.00 debited from HDFC Bank XX4842 on 03-SEP-26. Info: ACH D- L&TFINANCELIMITED-TXXXXXXXXXX6013. Avl bal:INR 33,050.84",
+            "UPDATE: INR 4,100.00 debited from HDFC Bank XX3156 on 03-SEP-26. Info: ACH D- L&TFINANCELIMITED-TXXXXXXXXXX1234. Avl bal:INR 21,500.25",
             0L,
         )!!
         assertEquals("Loans & EMI", Categorizer.categorize(emi.type, emi.merchant, emi.rawText))

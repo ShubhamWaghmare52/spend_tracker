@@ -407,3 +407,32 @@ class DedupeAndCategoryTest {
         assertEquals("Transfers", Categorizer.categorize(TxnType.DEBIT, "EMILY ROSE DSOUZA", ""))
     }
 }
+
+class StandingDebitDedupeTest {
+    private val hour = 60 * 60 * 1000L
+    private val ach = "UPDATE: INR 3,180.00 debited from HDFC Bank XXXX7316 on 05-OCT-26. Info: ACH D- NORTHSTARFINANCE-T0000000000088."
+    private val alert = "PAYMENT ALERT! INR 3180.00 deducted from HDFC Bank A/C No XX7316 towards NORTHSTAR FINANCE LTD UMRN: HDFC0000000000000099"
+
+    private fun stored(text: String, at: Long, amount: Long = 318000) = Transaction(
+        id = 1, amountPaise = amount, type = TxnType.DEBIT, merchant = "NORTHSTARFINANCE", accountLast4 = null,
+        source = TxnSource.SMS, sourceApp = "JD-HDFCBK-S", timestamp = at, upiRef = null, category = "Loans & EMI", rawText = text,
+    )
+
+    @Test fun oneEmiReportedTwiceIsOnePayment() {
+        val later = SmsParser.parse("JX-HDFCBK-S", alert, 10 * hour)!!
+        assertEquals(Deduper.STANDING_WINDOW_MS, Deduper.windowFor(later))
+        assertNotNull(Deduper.findDuplicate(later, listOf(stored(ach, 0))))
+    }
+
+    @Test fun ordinaryPaymentsHoursApartStayApart() {
+        val upi = SmsParser.parse("VM-HDFCBK-S", "Sent Rs.3180.00 From HDFC Bank A/C *7316 To RAVI On 05/10/26 Ref 630100000001", 10 * hour)!!
+        assertEquals(Deduper.WINDOW_MS, Deduper.windowFor(upi))
+        assertNull(Deduper.findDuplicate(upi, listOf(stored("Sent Rs.3180.00 From HDFC Bank A/C *7316 To RAVI", 0))))
+    }
+
+    @Test fun differentAmountsOrDaysStayApart() {
+        val later = SmsParser.parse("JX-HDFCBK-S", alert, 10 * hour)!!
+        assertNull(Deduper.findDuplicate(later, listOf(stored(ach, 0, amount = 318001))))
+        assertNull(Deduper.findDuplicate(later, listOf(stored(ach, -15 * hour))))
+    }
+}

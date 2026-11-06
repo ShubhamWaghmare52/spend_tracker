@@ -30,7 +30,7 @@ class BankCorpusTest {
 
     private val cases = listOf(
         // HDFC Bank
-        Case("HDFC Bank", "VM-HDFCBK-S", "Sent Rs.640.00\nFrom HDFC Bank A/C *7712\nTo CHAI POINT\nOn 02/11/26\nRef 630112345678\nNot You?\nCall 18002586161/SMS BLOCK UPI to 7308080808", D, 64000, "CHAI POINT", "7712", "630112345678"),
+        Case("HDFC Bank", "VM-HDFCBK-S", "Sent Rs.640.00\nFrom HDFC Bank A/C *7712\nTo CHAI POINT\nOn 15/10/26\nRef 630112345678\nNot You?\nCall 18002586161/SMS BLOCK UPI to 7308080808", D, 64000, "CHAI POINT", "7712", "630112345678"),
         Case("HDFC Bank", "AD-HDFCBK-S", "Spent Rs.1,249 On HDFC Bank Card 5521 At AMAZON PAY INDIA On 2026-11-02:18:22:10.Not You? To Block+Reissue Call 18002586161/SMS BLOCK CC 5521 to 7308080808", D, 124900, "AMAZON PAY INDIA", "5521"),
         Case("HDFC Bank", "VM-HDFCBK-S", "Credit Alert!\nRs.2,500.00 credited to HDFC Bank A/c XX7712 on 01-11-26 from VPA meera.n@okicici (UPI 630198765432)", C, 250000, "meera.n@okicici", "7712", "630198765432"),
         Case("HDFC Bank", "VM-HDFCBK-S", "Update! INR 48,000.00 deposited in HDFC Bank A/c XX7712 on 31-OCT-26 for NEFT Cr-CITI0000001-ACME SOFTWARE PVT LTD-SALARY OCT. Avl bal INR 61,230.55. Cheque deposits in A/C are subject to clearing", C, 4800000, account = "7712"),
@@ -67,7 +67,7 @@ class BankCorpusTest {
         Case("PNB", "VM-PNBSMS-S", "A/c X4471 credited INR 1,000.00 Dt 01-11-26 From suresh.p@okhdfcbank/UPI:630144443322. Bal INR 4,880.10-PNB", C, 100000, account = "4471"),
 
         // Canara Bank
-        Case("Canara Bank", "VK-CANBNK-S", "Dear Customer, Acct XXX882 Dr. INR 180.00 on 02/11/26 to MOHAN GENERAL STORE; UPI: 630133332211; Bal INR 6,210.40.Not you? SMS BLOCKUPI to 9901771222-CanaraBank", D, 18000, "MOHAN GENERAL STORE", "882", "630133332211"),
+        Case("Canara Bank", "VK-CANBNK-S", "Dear Customer, Acct XXX882 Dr. INR 180.00 on 15/10/26 to MOHAN GENERAL STORE; UPI: 630133332211; Bal INR 6,210.40.Not you? SMS BLOCKUPI to 9901771222-CanaraBank", D, 18000, "MOHAN GENERAL STORE", "882", "630133332211"),
         Case("Canara Bank", "VK-CANBNK-S", "An amount of INR 2,000.00 has been CREDITED to your account XXX882 on 01/11/2026 towards UPI from anita.k@ybl. Total Avail.bal INR 8,210.40 - Canara Bank", C, 200000, account = "882"),
 
         // Union Bank of India
@@ -97,7 +97,7 @@ class BankCorpusTest {
         Case("IDBI Bank", "VM-IDBIBK-S", "Your IDBI Bank A/C NN3391 is debited for Rs 1,100.00 towards UPI/630144440000/ELECTRICITY BOARD. Avl Bal Rs 6,320.00. Not you? Call 18002094324", D, 110000, account = "3391"),
 
         // IDFC First
-        Case("IDFC First", "JM-IDFCFB-S", "Your A/c XX2290 debited by Rs. 899.00 on 02/11/26; REDBUS credited. RRN 630133330000. Available balance Rs. 7,410.15. Team IDFC FIRST Bank", D, 89900, "REDBUS", "2290", "630133330000"),
+        Case("IDFC First", "JM-IDFCFB-S", "Your A/c XX2290 debited by Rs. 899.00 on 15/10/26; REDBUS credited. RRN 630133330000. Available balance Rs. 7,410.15. Team IDFC FIRST Bank", D, 89900, "REDBUS", "2290", "630133330000"),
 
         // IndusInd
         Case("IndusInd", "AD-INDUSB-S", "A/C *XX6612 credited by Rs 3000.00 from nitin.k@ybl. RRN:630122220000. Avl Bal:15502.12. Not you? Call 18602677777 - IndusInd bank.", C, 300000, "nitin.k@ybl", "6612", "630122220000"),
@@ -139,7 +139,18 @@ class BankCorpusTest {
         Case("Post Office Savings", "BV-DOPBNK-S", "Account  No. XXXXXXXX7710 CREDIT with amount Rs. 1550.00 on 01-11-2026. Balance: Rs.12000.00. [S92240001]", C, 155000, account = "7710"),
         Case("Slice", "JD-SLICEIT-S", "Rs. 1,000 received in slice A/c xx3301 on 01-Nov-26 from VIKRAM SINGH via UPI (Ref ID: 630100002345). Avl. Bal. Rs. 1,203.56 - slice", C, 100000, "VIKRAM SINGH", "3301", "630100002345"),
 
+        // Autopay and UPI mandates (from a real phone's week of SMS, values changed)
+        Case("BOB card autopay, first charge", "JD-BOBSMS-S", "Dear Customer, auto pay facility has been successfully activated on your Debit Card XXXX2207 for Rs. 10000.00, from 12/10/2026. An initial amount of Rs. 499.00 has been debited from your account. StreamFlix can initiate subsequent transactions for a max amount of upto Rs. 10000.00. You will receive notification with the transaction amount prior to any subsequent debits initiated by StreamFlix. To Manage your auto pay facility with ID Abc123, click https://www.sihub.in/managesi/bankofbaroda -Bank of Baroda", D, 49900, "StreamFlix", "2207"),
+        Case("HDFC UPI mandate payment", "AD-HDFCBK-S", "UPI Mandate:\nSent Rs.1,450.00\nFrom HDFC Bank A/c XX7316\nTo ACME HOME LOANS LTD\n15/10/26\nRef 630100004321\nNot You? Call 18002586161/SMS BLOCK UPI to 7308080808", D, 145000, "ACME HOME LOANS LTD", "7316", "630100004321"),
+        Case("HDFC EMI deducted", "JX-HDFCBK-S", "PAYMENT ALERT!\nINR 3180.00 deducted from HDFC Bank A/C No XX7316 towards NORTHSTAR FINANCE LTD UMRN: HDFC0000000000000099", D, 318000, "NORTHSTAR FINANCE LTD", "7316"),
+        Case("HDFC EMI via ACH", "JD-HDFCBK-S", "UPDATE: INR 3,180.00 debited from HDFC Bank XXXX7316 on 05-OCT-26. Info: ACH D- NORTHSTARFINANCE-TXXXXXXXXXXXX88. Avl bal:INR 1,204.50", D, 318000, "NORTHSTARFINANCE"),
+
         // Not payments: these must stay out.
+        Case("BOB card autopay, nothing charged", "JD-BOBSMS-S", "Dear Customer, auto pay facility has been successfully activated on your Debit Card XXXX2207 for Rs. 10000.00, from 12/10/2026. An initial amount of Rs. 0.00 has been debited from your account. StreamFlix can initiate subsequent transactions for a max amount of upto Rs. 10000.00. -Bank of Baroda", null),
+        Case("Mandate revoked", "JX-BOBSMS-S", "You have successfully revoked a mandate on StreamPlus Media for a frequency of ASPRESENTED starting from 2025-11-04 12:00:00 AM for amount 399.00 -BOB", null),
+        Case("E-mandate reminder", "AD-HDFCBK-S", "E-Mandate!\nRs.1,450.00 will be deducted on 15/10/26, 00:00:00\nFor ACME HOME LOANS LTD mandate\nUMN abc@okhdfcbank\nMaintain Balance\n-HDFC Bank", null),
+        Case("Autopay failed", "JM-HDFCBK-S", "Autopay Failed:\nINR.1999.00 on 06/11/2026 via HDFC Bank Card XX3308 for StreamFlix\nID:Abc\nManage:https://hdfc.bank.in/x", null),
+        Case("Card limit change", "JD-BOBSMS-S", "Your request via bob World to change Daily Tran. Limit/Usage Permission for Debit Card ending with 2207 is processed successfully. Details as below:\nATM: Rs.25000\nPOS/ECOM: Rs.50000", null),
         Case("CRED card bill", "AD-CREDIN-S", "Payment of Rs.10000 has been successfully credited towards your SBI Credit Card.", null),
         Case("Balance only", "VM-HDFCBK-S", "Available balance in your A/c XX7712 is Rs.12,345.67 as on 02-11-26. -HDFC Bank", null),
         Case("Mandate", "AD-SBIUPI-S", "Your UPI-Mandate for Rs.199.00 is successfully created towards NETFLIX from A/c No: XXXXXX3307. -SBI", null),

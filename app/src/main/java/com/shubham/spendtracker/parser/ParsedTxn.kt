@@ -47,7 +47,7 @@ internal object ParseUtils {
             .minByOrNull { it.second }?.first
 
     private val stopAhead =
-        """(?=\s+(?:on|ref|refno|upi|via|using|for|avl|if|not|txn|thru|dated|at|of|with|is|has|was|from|by|utr|total|bal|dr|cr|call)\b|\s*[,;()|]|\.(?=(?:rrn|ref|avl|bal|upi)\b)|\.\s|\.?$|\s+\d{2}[-/])"""
+        """(?=\s+(?:on|ref|refno|upi|via|using|for|avl|if|not|txn|thru|dated|at|of|with|is|has|was|from|by|utr|total|bal|dr|cr|call|umrn)\b|\s*[,;()|]|\.(?=(?:rrn|ref|avl|bal|upi)\b)|\.\s|\.?$|\s+\d{2}[-/])"""
 
     private val skipCandidate = Regex(
         """^(?:your\b|a/?c\b|ac\b|acct|account|card|you\b|xx|\*|x\d|\d{1,2}[-/]|the\b|bank\b|upi\b|imps\b|neft\b|rtgs\b|\d+$|rs\.?\s*:?\s*\d|inr\b|₹)""",
@@ -56,7 +56,7 @@ internal object ParseUtils {
 
     // Trailing noise banks append after the payee name.
     private val partyNoise = Regex(
-        """\s*(?:\bnot you\b|\butr\b|\bcall\b|\bavl\b|\btotal bal|\s(?:dr|cr)\s*-|-\s*t?x{3,}|\bx{4,}|\bvalue\s+\d).*$""",
+        """\s*(?:\bnot you\b|\butr\b|\bcall\b|\bavl\b|\btotal bal|\s(?:dr|cr)\s*-|-\s*t?x{3,}|\bx{4,}|\bvalue\s+\d|\bumrn\b).*$""",
         RegexOption.IGNORE_CASE,
     )
 

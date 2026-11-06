@@ -9,6 +9,16 @@ import com.shubham.spendtracker.data.Transaction
 object Deduper {
     const val WINDOW_MS = 3 * 60 * 1000L
 
+    // Banks can report one EMI or autopay debit twice, hours apart (HDFC: "UPDATE: INR 3,180.00 debited …
+    // ACH D- NORTHSTARFINANCE…" in the morning, "PAYMENT ALERT! INR 3180.00 deducted … UMRN …" at night).
+    const val STANDING_WINDOW_MS = 24 * 60 * 60 * 1000L
+    private val standing = Regex("""\b(?:ach|nach|umrn|ecs|e-?mandate|mandate|auto ?pay|si)\b""", RegexOption.IGNORE_CASE)
+
+    fun isStandingDebit(type: TxnType, rawText: String) = type == TxnType.DEBIT && standing.containsMatchIn(rawText)
+
+    /** How far either side of [new] to look for another report of the same payment. */
+    fun windowFor(new: ParsedTxn) = if (isStandingDebit(new.type, new.rawText)) STANDING_WINDOW_MS else WINDOW_MS
+
     fun findDuplicate(new: ParsedTxn, candidates: List<Transaction>): Transaction? {
         // A shared UPI ref with the opposite direction is the other half of a self transfer, not a duplicate.
         new.upiRef?.let { ref -> candidates.firstOrNull { it.upiRef == ref && it.type == new.type }?.let { return it } }
@@ -19,6 +29,11 @@ object Deduper {
                 // Same source twice is only a duplicate if it is literally the same message
                 // (backfill re-reading an SMS, or a notification being re-posted).
                 (old.source != new.source || old.rawText == new.rawText)
+        } ?: candidates.firstOrNull { old ->
+            old.amountPaise == new.amountPaise &&
+                kotlin.math.abs(old.timestamp - new.timestamp) <= STANDING_WINDOW_MS &&
+                isStandingDebit(new.type, new.rawText) && isStandingDebit(old.type, old.rawText) &&
+                (old.accountLast4 == null || new.accountLast4 == null || old.accountLast4 == new.accountLast4)
         }
     }
 

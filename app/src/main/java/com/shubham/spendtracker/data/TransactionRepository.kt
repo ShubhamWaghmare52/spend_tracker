@@ -19,9 +19,10 @@ class TransactionRepository(private val dao: TransactionDao) {
 
     /** Stores a parsed payment. Returns the new row, or null when it was merged into an existing one. */
     suspend fun ingest(parsed: ParsedTxn): Transaction? = ingestLock.withLock {
+        val window = Deduper.windowFor(parsed)
         val candidates = dao.candidates(
-            from = parsed.timestamp - Deduper.WINDOW_MS,
-            to = parsed.timestamp + Deduper.WINDOW_MS,
+            from = parsed.timestamp - window,
+            to = parsed.timestamp + window,
             upiRef = parsed.upiRef,
         )
         val dup = Deduper.findDuplicate(parsed, candidates)

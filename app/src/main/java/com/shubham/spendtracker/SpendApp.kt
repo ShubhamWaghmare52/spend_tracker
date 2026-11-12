@@ -6,6 +6,7 @@ import com.shubham.spendtracker.data.AppDatabase
 import com.shubham.spendtracker.data.AppSettings
 import com.shubham.spendtracker.data.DailyLimit
 import com.shubham.spendtracker.data.TransactionRepository
+import com.shubham.spendtracker.ingest.CrashReporter
 import com.shubham.spendtracker.insights.MonthlySummaryWorker
 import com.shubham.spendtracker.widget.SpendWidget
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +21,7 @@ class SpendApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashReporter.install(this)
         AppSettings.values(this) // loads privacy mode before anything is drawn (widget included)
         MonthlySummaryWorker.schedule(this)
         // Any payment, category change or limit change redraws the home screen widget.

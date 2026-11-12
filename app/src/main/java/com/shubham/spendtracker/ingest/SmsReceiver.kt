@@ -24,9 +24,19 @@ class SmsReceiver : BroadcastReceiver() {
                 val added = messages.mapNotNull { (sender, pieces) ->
                     val body = pieces.joinToString("") { it.messageBody.orEmpty() }
                     val ts = pieces.first().timestampMillis
-                    SmsParser.parse(sender, body, ts)?.let { app.repository.ingest(it) }
+                    val parsed = SmsParser.parse(sender, body, ts)
+                    if (parsed == null) {
+                        IngestLog.log(app, "SMS from $sender: not a payment")
+                        null
+                    } else {
+                        val saved = app.repository.ingest(parsed)
+                        IngestLog.log(app, "SMS from $sender: ${IngestLog.describe(parsed, saved)}")
+                        saved
+                    }
                 }
                 Notifier.afterNewPayment(context, added)
+            } catch (e: Exception) {
+                IngestLog.error(app, "SmsReceiver", e)
             } finally {
                 pending.finish()
             }

@@ -16,6 +16,8 @@ object InboxBackfill {
         val since = windowStart()
         val repo = context.spendApp.repository
         var imported = 0
+        var scanned = 0
+        var added = 0
         context.contentResolver.query(
             Telephony.Sms.Inbox.CONTENT_URI,
             arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
@@ -24,13 +26,15 @@ object InboxBackfill {
             "${Telephony.Sms.DATE} ASC",
         )?.use { c ->
             while (c.moveToNext()) {
+                scanned++
                 val parsed = SmsParser.parse(c.getString(0).orEmpty(), c.getString(1).orEmpty(), c.getLong(2))
                 if (parsed != null) {
-                    repo.ingest(parsed, settleSplits = false)
+                    if (repo.ingest(parsed, settleSplits = false) != null) added++
                     imported++
                 }
             }
         }
+        IngestLog.log(context, "Inbox backfill: scanned $scanned SMS, $imported payments, $added new")
         return imported
     }
 }

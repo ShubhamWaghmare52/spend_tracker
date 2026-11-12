@@ -9,11 +9,21 @@ import com.shubham.spendtracker.data.Notifier
 import com.shubham.spendtracker.parser.NotificationParser
 import com.shubham.spendtracker.spendApp
 import kotlinx.coroutines.launch
+import java.io.FileDescriptor
+import java.io.PrintWriter
 
 /** Reads "Paid ₹X to Y" notifications from UPI apps (needs Notification access). */
 class PaymentNotificationListener : NotificationListenerService() {
+    override fun onListenerConnected() {
+        IngestLog.log(this, "notification listener connected")
+    }
+
+    override fun onListenerDisconnected() {
+        IngestLog.log(this, "notification listener disconnected")
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (sbn.packageName !in NotificationParser.supportedApps) return
+        val appName = NotificationParser.supportedApps[sbn.packageName] ?: return
         val n = sbn.notification
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
 
@@ -22,12 +32,26 @@ class PaymentNotificationListener : NotificationListenerService() {
         val text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
             ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString()
 
-        val parsed = NotificationParser.parse(sbn.packageName, title, text, sbn.postTime) ?: return
         val app = spendApp
         app.appScope.launch {
-            val added = listOfNotNull(app.repository.ingest(parsed))
-            Notifier.afterNewPayment(app, added)
+            try {
+                val parsed = NotificationParser.parse(sbn.packageName, title, text, sbn.postTime)
+                if (parsed == null) {
+                    IngestLog.log(app, "Notification from $appName: not a payment")
+                    return@launch
+                }
+                val saved = app.repository.ingest(parsed)
+                IngestLog.log(app, "Notification from $appName: ${IngestLog.describe(parsed, saved)}")
+                Notifier.afterNewPayment(app, listOfNotNull(saved))
+            } catch (e: Exception) {
+                IngestLog.error(app, "PaymentNotificationListener", e)
+            }
         }
+    }
+
+    /** `adb shell dumpsys activity service com.shubham.spendtracker/.ingest.PaymentNotificationListener` */
+    override fun dump(fd: FileDescriptor?, writer: PrintWriter, args: Array<out String>?) {
+        IngestLog.dump(this, writer)
     }
 
     companion object {

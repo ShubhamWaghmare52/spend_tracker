@@ -26,7 +26,10 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.TextButton
+import com.shubham.spendtracker.ingest.CrashReporter
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
@@ -384,6 +387,7 @@ class MainActivity : FragmentActivity() {
                                     if (on) askNotificationPermission()
                                 },
                                 onThemeChange = { mode -> AppSettings.update(context) { it.copy(theme = mode) } },
+                                onReportProblem = { CrashReporter.send(context, crash = null) },
                                 modifier = m,
                             )
                             shownTab == 0 -> HomeScreen(
@@ -439,6 +443,23 @@ class MainActivity : FragmentActivity() {
                             )
                             else -> TransactionsScreen(txns, splits, actions, m)
                         }
+                    }
+                }
+                var lastCrash by remember { mutableStateOf(CrashReporter.pendingCrash(context)) }
+                lastCrash?.let { crash ->
+                    if (!locked) {
+                        fun done() { CrashReporter.clearCrash(context); lastCrash = null }
+                        AlertDialog(
+                            onDismissRequest = ::done,
+                            title = { Text("Spend Tracker closed unexpectedly") },
+                            text = {
+                                Text("Send a report so it can be fixed? It opens your email app with the error details and recent activity. No message text is included, and you can review it before sending.")
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { CrashReporter.send(context, crash); done() }) { Text("Send report") }
+                            },
+                            dismissButton = { TextButton(onClick = ::done) { Text("Not now") } },
+                        )
                     }
                 }
                 if (addingPayment && !locked) {

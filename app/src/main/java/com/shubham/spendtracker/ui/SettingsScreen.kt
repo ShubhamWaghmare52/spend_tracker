@@ -36,6 +36,7 @@ fun SettingsScreen(
     onToggleShowBalances: (Boolean) -> Unit,
     onToggleUnusualAlerts: (Boolean) -> Unit,
     onThemeChange: (AppSettings.ThemeMode) -> Unit,
+    onReportProblem: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -93,6 +94,14 @@ fun SettingsScreen(
                 settings.unusualAlerts, onToggleUnusualAlerts,
             )
         }
+        Spacer(Modifier.height(16.dp))
+        SettingsGroup("Help") {
+            ActionRow(
+                "🐞", "Report a problem",
+                "Opens your email app with the app version and a log of recent captures. No message text is included and merchant names are hidden. You review it before sending.",
+                onReportProblem,
+            )
+        }
         Spacer(Modifier.height(24.dp))
         Text(
             "Spend Tracker $versionName · all data stays on this phone",
@@ -120,6 +129,24 @@ private fun SettingsGroup(title: String, content: @Composable () -> Unit) {
 @Composable
 private fun Divider() =
     HorizontalDivider(Modifier.padding(start = 56.dp, end = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+
+@Composable
+private fun ActionRow(emoji: String, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(emoji, style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Medium)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
 
 @Composable
 private fun ToggleRow(emoji: String, title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {

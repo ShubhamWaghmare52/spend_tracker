@@ -77,7 +77,7 @@ app/src/main/java/com/shubham/spendtracker/
 │             Deduper                          → merges SMS + notification, pairs self transfers
 │             Categorizer                      → merchant → category
 ├── ingest/   SmsReceiver (live SMS), InboxBackfill (past 90 days),
-│             PaymentNotificationListener (UPI apps)
+│             PaymentNotificationListener (UPI apps), IngestLog, CrashReporter
 ├── data/     Room database, TransactionRepository, DailyLimit, Budgets, CsvBackup, Notifier
 ├── insights/ RecurringDetector, MonthlySummary (+ WorkManager job for the 1st of the month)
 ├── widget/   SpendWidget (home screen widget)
@@ -85,6 +85,16 @@ app/src/main/java/com/shubham/spendtracker/
 ```
 
 Parsing, recurring-payment detection, the monthly summary and the CSV format are plain Kotlin with no Android dependencies, and they are covered by unit tests in `app/src/test`. To support a new bank format, add an example message (with the numbers changed) to `ParserTest.kt`, make it pass, and bump `PARSER_VERSION` in `MainActivity` so existing installs re-scan their SMS.
+
+## Diagnostics and problem reports
+
+The app keeps a short log of what it captured (sender, amount, merchant, outcome; never message text) that survives reboots. Over USB:
+
+```bash
+adb shell dumpsys activity service com.shubham.spendtracker/.ingest.PaymentNotificationListener
+```
+
+Without USB, users tap **Settings → Help → Report a problem**, or **Send report** on the prompt shown after a crash. Either opens their email app with the app version, permission status and recent log (merchant names and refs hidden), addressed to `CrashReporter.REPORT_EMAIL`. The app has no internet permission, so nothing is sent unless the user sends that email.
 
 ## Limitations
 

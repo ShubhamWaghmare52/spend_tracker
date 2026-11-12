@@ -27,6 +27,14 @@ class LockTimerTest {
         assertTrue(t.needsUnlock(now = 82_000))
     }
 
+    @Test fun aShortTripAwayIsForgottenOnceBack() {
+        val t = LockTimer(60_000)
+        t.onUnlocked()
+        t.onLeft(now = 10_000)
+        t.onReturned(now = 40_000)
+        assertFalse(t.needsUnlock(now = 500_000)) // still in the app, long after that trip
+    }
+
     @Test fun unlockingResetsTheClock() {
         val t = LockTimer(60_000)
         t.onUnlocked(); t.onLeft(10_000); t.onReturned(80_000)

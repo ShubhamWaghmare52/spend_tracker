@@ -17,8 +17,12 @@ class TransactionRepository(private val dao: TransactionDao) {
     val transactions: Flow<List<Transaction>> = dao.observeAll()
     val splits: Flow<List<Split>> = dao.observeSplits()
 
-    /** Stores a parsed payment. Returns the new row, or null when it was merged into an existing one. */
-    suspend fun ingest(parsed: ParsedTxn): Transaction? = ingestLock.withLock {
+    /**
+     * Stores a parsed payment. Returns the new row, or null when it was merged into an existing one.
+     * Re-reading old messages passes [settleSplits] false: only a payment arriving now pays a friend's
+     * share back, so a re-scan can't settle a share again after the user marked it unpaid.
+     */
+    suspend fun ingest(parsed: ParsedTxn, settleSplits: Boolean = true): Transaction? = ingestLock.withLock {
         val window = Deduper.windowFor(parsed)
         val candidates = dao.candidates(
             from = parsed.timestamp - window,
@@ -34,13 +38,13 @@ class TransactionRepository(private val dao: TransactionDao) {
             insertNew(parsed)
         }
         linkSelfTransfer(parsed.upiRef)
-        if (inserted?.type == TxnType.CREDIT) settleFromCredit(inserted)
+        if (settleSplits && inserted?.type == TxnType.CREDIT) settleFromCredit(inserted)
         inserted
     }
 
-    /** A friend paying back by UPI settles their outstanding share(s) automatically. */
+    /** A friend paying back by UPI settles their outstanding share(s) of payments made before it. */
     private suspend fun settleFromCredit(credit: Transaction) {
-        SplitMatcher.settledBy(credit, dao.outstandingSplits())
+        SplitMatcher.settledBy(credit, dao.outstandingSplits(until = credit.timestamp))
             .forEach { dao.updateSplit(it.copy(settledAt = credit.timestamp)) }
     }
 
@@ -144,8 +148,19 @@ class TransactionRepository(private val dao: TransactionDao) {
     /**
      * Drops SMS-derived rows inside the re-import window so an improved parser can re-read them.
      * Older rows (e.g. restored from a backup) are kept, since the inbox scan can't bring them back.
+     * So are rows whose category only the row itself remembers; the re-scan merges into those.
      */
-    suspend fun clearSmsImports(since: Long) = ingestLock.withLock { dao.deleteSmsImportsSince(since) }
+    suspend fun clearSmsImports(since: Long) = ingestLock.withLock {
+        dao.deleteAll(dao.smsImportsSince(since).filterNot(::hasPickedCategoryOfItsOwn))
+    }
+
+    /**
+     * A category the user picked for a payment with no usable payee name isn't remembered per merchant
+     * (see [setCategory]), so a re-import would put the payment back in its automatic category.
+     */
+    private fun hasPickedCategoryOfItsOwn(row: Transaction) =
+        Categorizer.merchantKey(row.merchant) == null &&
+            row.category != Categorizer.categorize(row.type, row.merchant, row.rawText)
 
     /**
      * Re-reads payments recorded from UPI app notifications with the current parser, since the SMS re-scan
@@ -160,7 +175,7 @@ class TransactionRepository(private val dao: TransactionDao) {
             val parsed = NotificationParser.parseText(row.sourceApp, row.rawText, row.timestamp)
             if (parsed != null && parsed.type == row.type && parsed.amountPaise == row.amountPaise && parsed.merchant == row.merchant) continue
             ingestLock.withLock { dao.delete(row) }
-            parsed?.let { ingest(it) }
+            parsed?.let { ingest(it, settleSplits = false) }
             changed++
         }
         return changed

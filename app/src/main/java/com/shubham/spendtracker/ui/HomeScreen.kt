@@ -142,9 +142,12 @@ fun HomeScreen(
     budgets: Map<String, Long>,
     onOpenSort: () -> Unit,
     smsGranted: Boolean,
+    smsBlocked: Boolean,
     notifEnabled: Boolean,
     onGrantSms: () -> Unit,
     onEnableNotif: () -> Unit,
+    alertsBlocked: Boolean,
+    onAllowAlerts: () -> Unit,
     dailyLimit: Long,
     onSetLimit: (Long) -> Unit,
     lowBalance: Long,
@@ -186,7 +189,8 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Spacer(Modifier.height(4.dp))
-        if (!smsGranted || !notifEnabled) SetupCard(smsGranted, notifEnabled, onGrantSms, onEnableNotif)
+        if (!smsGranted || !notifEnabled) SetupCard(smsGranted, smsBlocked, notifEnabled, onGrantSms, onEnableNotif)
+        if (alertsBlocked) AlertsOffCard(onAllowAlerts)
 
         Entrance(0, playIntro) {
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -261,7 +265,7 @@ fun HomeScreen(
         // Balances that don't add up: money that moved without an SMS or notification (last 30 days)
         val gaps = remember(txns, dismissedGaps) {
             Balances.gaps(txns, since = System.currentTimeMillis() - 30L * 24 * 60 * 60 * 1000)
-                .filter { it.key !in dismissedGaps }
+                .filter { gap -> dismissedGaps.none(gap::sameAs) }
                 .take(2)
         }
         gaps.forEach { gap ->
@@ -415,6 +419,9 @@ fun HomeScreen(
         }
         Spacer(Modifier.height(8.dp))
     }
+
+    // Sheets and dialogs are separate windows above the lock screen: leave them out while locked.
+    if (LocalAppLocked.current) return
 
     listQuery?.let { q ->
         PaymentListSheet(q, txns, onDismiss = { listQuery = null; selectedBar = null }, onOpen = { detailId = it.id })
@@ -789,7 +796,24 @@ private fun SectionCard(
 }
 
 @Composable
-private fun SetupCard(smsGranted: Boolean, notifEnabled: Boolean, onGrantSms: () -> Unit, onEnableNotif: () -> Unit) {
+private fun AlertsOffCard(onAllow: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Your alerts can't reach you", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "You've set a limit or budget, but notifications are turned off for Spend Tracker, so its alerts won't show.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Button(onClick = onAllow) { Text("Turn on notifications") }
+        }
+    }
+}
+
+@Composable
+private fun SetupCard(smsGranted: Boolean, smsBlocked: Boolean, notifEnabled: Boolean, onGrantSms: () -> Unit, onEnableNotif: () -> Unit) {
     Card(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -800,7 +824,15 @@ private fun SetupCard(smsGranted: Boolean, notifEnabled: Boolean, onGrantSms: ()
                 "Payments are read from bank SMS alerts and from GPay / PhonePe / Paytm notifications. Everything stays on this phone.",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            if (!smsGranted) Button(onClick = onGrantSms) { Text("Allow SMS access") }
+            if (!smsGranted) {
+                Button(onClick = onGrantSms) { Text(if (smsBlocked) "Allow SMS in Settings" else "Allow SMS access") }
+                if (smsBlocked) {
+                    Text(
+                        "Android has stopped asking. In Settings, open Permissions, then SMS, and choose Allow.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
             if (!notifEnabled) OutlinedButton(onClick = onEnableNotif) { Text("Allow notification access") }
             // Android 13+ greys these out for apps installed from a file until the user allows it.
             if (android.os.Build.VERSION.SDK_INT >= 33) {

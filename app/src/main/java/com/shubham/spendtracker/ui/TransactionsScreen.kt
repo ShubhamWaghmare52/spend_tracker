@@ -236,6 +236,9 @@ fun TransactionsScreen(
         }
     }
 
+    // Sheets and dialogs are separate windows above the lock screen: leave them out while locked.
+    if (LocalAppLocked.current) return
+
     txns.find { it.id == detailId }?.let { t ->
         TxnDetailSheet(t, splits, actions, onDismiss = { detailId = null })
     }
@@ -296,7 +299,7 @@ private fun DateBar(filter: DateFilter, firstMonth: YearMonth?, onChange: (DateF
                 }
                 // A fixed-width menu, centred under the label, with the current choice ticked.
                 DropdownMenu(
-                    expanded = menuOpen,
+                    expanded = menuOpen && !LocalAppLocked.current,
                     onDismissRequest = { menuOpen = false },
                     offset = DpOffset(with(density) { labelWidth.toDp() } / 2 - DateMenuWidth / 2, 4.dp),
                     modifier = Modifier.width(DateMenuWidth),

@@ -21,9 +21,9 @@ class LockTimer(private val relockAfterMs: Long) {
         if (unlocked) leftAt = now
     }
 
-    /** Back in the foreground at [now]: forget the unlock if it has expired. */
+    /** Back in the foreground at [now]: forget the unlock if it has expired, otherwise stop the clock. */
     fun onReturned(now: Long) {
-        if (needsUnlock(now)) unlocked = false
+        if (needsUnlock(now)) unlocked = false else leftAt = 0
     }
 
     companion object {

@@ -26,7 +26,7 @@ object InboxBackfill {
             while (c.moveToNext()) {
                 val parsed = SmsParser.parse(c.getString(0).orEmpty(), c.getString(1).orEmpty(), c.getLong(2))
                 if (parsed != null) {
-                    repo.ingest(parsed)
+                    repo.ingest(parsed, settleSplits = false)
                     imported++
                 }
             }

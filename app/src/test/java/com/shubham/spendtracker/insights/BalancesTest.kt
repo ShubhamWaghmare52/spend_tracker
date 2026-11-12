@@ -160,4 +160,14 @@ class BalancesTest {
         assertEquals(26000L, b.balancePaise)
         assertFalse(b.exact)
     }
+
+    @Test fun dismissedGapStaysDismissedWhenAReScanShiftsItsTimes() {
+        val gap = BalanceGap("Bank of Baroda", "7421", from = 1_000_000, to = 9_000_000, amountPaise = -18000)
+        assertTrue(gap.sameAs(gap.key))
+        // The phone received both SMS a few seconds after the bank sent them.
+        assertTrue(gap.sameAs(gap.copy(from = 1_004_000, to = 9_007_000).key))
+        assertFalse(gap.sameAs(gap.copy(to = 9_000_000 + 60 * 60_000).key))
+        assertFalse(gap.sameAs(gap.copy(last4 = "1111").key))
+        assertFalse(gap.sameAs("not a key"))
+    }
 }

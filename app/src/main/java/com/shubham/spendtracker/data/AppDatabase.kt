@@ -37,12 +37,15 @@ interface TransactionDao {
     @Query("SELECT COALESCE(SUM(amountPaise), 0) FROM transactions WHERE type = 'DEBIT' AND category != :excluded AND timestamp >= :from")
     suspend fun spentSince(from: Long, excluded: String): Long
 
-    // Rows the user has added a note, tags or a split to are kept; the re-scan merges into them.
+    // Rows the user has added a note, tags or a split to are left out: they're kept, and the re-scan merges into them.
     @Query(
-        "DELETE FROM transactions WHERE source = 'SMS' AND timestamp >= :since AND note IS NULL AND tags IS NULL " +
+        "SELECT * FROM transactions WHERE source = 'SMS' AND timestamp >= :since AND note IS NULL AND tags IS NULL " +
             "AND id NOT IN (SELECT txnId FROM splits)",
     )
-    suspend fun deleteSmsImportsSince(since: Long)
+    suspend fun smsImportsSince(since: Long): List<Transaction>
+
+    @Delete
+    suspend fun deleteAll(txns: List<Transaction>)
 
     @Query("UPDATE transactions SET note = :note, tags = :tags WHERE id = :id")
     suspend fun updateNote(id: Long, note: String?, tags: String?)
@@ -53,8 +56,12 @@ interface TransactionDao {
     @Query("SELECT * FROM splits WHERE txnId = :txnId")
     suspend fun splitsFor(txnId: Long): List<Split>
 
-    @Query("SELECT * FROM splits WHERE settledAt IS NULL")
-    suspend fun outstandingSplits(): List<Split>
+    /** Unpaid shares of payments made up to [until]. */
+    @Query(
+        "SELECT s.* FROM splits s JOIN transactions t ON t.id = s.txnId " +
+            "WHERE s.settledAt IS NULL AND t.timestamp <= :until",
+    )
+    suspend fun outstandingSplits(until: Long): List<Split>
 
     @Insert
     suspend fun insertSplits(splits: List<Split>)

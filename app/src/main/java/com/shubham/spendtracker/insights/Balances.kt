@@ -2,6 +2,7 @@ package com.shubham.spendtracker.insights
 
 import com.shubham.spendtracker.data.ManualPayment
 import com.shubham.spendtracker.data.Transaction
+import com.shubham.spendtracker.parser.Deduper
 import com.shubham.spendtracker.parser.TxnSource
 import com.shubham.spendtracker.parser.TxnType
 import com.shubham.spendtracker.ui.bankName
@@ -28,6 +29,19 @@ data class AccountBalance(
  */
 data class BalanceGap(val bank: String, val last4: String?, val from: Long, val to: Long, val amountPaise: Long) {
     val key: String get() = "$bank:${last4.orEmpty()}:$from:$to"
+
+    /**
+     * Whether [dismissedKey] is the [key] of this gap. An inbox re-scan records the time the phone received
+     * an SMS rather than the time the bank sent it, so the same gap can come back with slightly different times.
+     */
+    fun sameAs(dismissedKey: String): Boolean {
+        val parts = dismissedKey.split(':')
+        if (parts.size < 4) return false
+        val keyTo = parts[parts.size - 1].toLongOrNull() ?: return false
+        val keyFrom = parts[parts.size - 2].toLongOrNull() ?: return false
+        return parts.dropLast(2).joinToString(":") == "$bank:${last4.orEmpty()}" &&
+            abs(keyFrom - from) <= Deduper.WINDOW_MS && abs(keyTo - to) <= Deduper.WINDOW_MS
+    }
 }
 
 object Balances {

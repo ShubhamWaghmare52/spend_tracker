@@ -10,7 +10,9 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.SystemBarStyle
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import com.shubham.spendtracker.ui.LocalAppLocked
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
@@ -74,6 +76,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -202,21 +206,43 @@ class MainActivity : FragmentActivity() {
                 var smsGranted by remember { mutableStateOf(hasSms(context)) }
                 var notifEnabled by remember { mutableStateOf(PaymentNotificationListener.isEnabled(context)) }
 
+                // After two refusals Android stops showing the SMS prompt and answers "denied" at once;
+                // from then on only the phone's Settings can grant it.
+                var smsBlocked by remember { mutableStateOf(false) }
+                var smsCouldAsk by remember { mutableStateOf(false) }
+                var smsAskedAt by remember { mutableStateOf(0L) }
+                fun smsPromptAllowed() =
+                    ActivityCompat.shouldShowRequestPermissionRationale(this@MainActivity, Manifest.permission.READ_SMS)
+                // Whether the app's own alerts can be shown (the permission on Android 13+, the app's switch before).
+                var alertsAllowed by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
+
                 LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
                     smsGranted = hasSms(context)
+                    if (smsGranted) smsBlocked = false
                     notifEnabled = PaymentNotificationListener.isEnabled(context)
+                    alertsAllowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
                 }
 
                 val smsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
                     smsGranted = hasSms(context)
-                    if (smsGranted) backfillOnce(context)
+                    if (smsGranted) {
+                        backfillOnce(context)
+                    } else {
+                        // Refused for the second time, or refused without the prompt ever appearing.
+                        // (Swiping a first prompt away also says "denied", but not instantly.)
+                        val instant = SystemClock.elapsedRealtime() - smsAskedAt < SMS_PROMPT_SKIPPED_MS
+                        smsBlocked = !smsPromptAllowed() && (smsCouldAsk || instant)
+                    }
                 }
 
                 val dailyLimit by DailyLimit.limit(context).collectAsStateWithLifecycle()
                 val lowBalance by LowBalance.threshold(context).collectAsStateWithLifecycle()
                 val dismissedGaps by DismissedGaps.keys(context).collectAsStateWithLifecycle()
                 var addingPayment by remember { mutableStateOf(false) }
-                val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+                val notifPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                    alertsAllowed = NotificationManagerCompat.from(context).areNotificationsEnabled()
+                    if (!granted) Toast.makeText(context, "Alerts stay off until you allow notifications", Toast.LENGTH_LONG).show()
+                }
                 fun askNotificationPermission() {
                     // Limit, budget and summary alerts are notifications, which need permission on Android 13+.
                     if (Build.VERSION.SDK_INT >= 33 &&
@@ -256,6 +282,7 @@ class MainActivity : FragmentActivity() {
                 // build-in animation plays after unlocking instead of unseen underneath it.
                 // A re-lock mid-session keeps the content composed to preserve where the user was.
                 val showContent = !locked || introPlayed
+                CompositionLocalProvider(LocalAppLocked provides locked) {
                 Box(Modifier.fillMaxSize()) {
                 if (showContent) Scaffold(
                     topBar = {
@@ -282,7 +309,7 @@ class MainActivity : FragmentActivity() {
                             actions = {
                                 if (page == Page.MAIN) {
                                     IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More") }
-                                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                    DropdownMenu(expanded = menuOpen && !locked, onDismissRequest = { menuOpen = false }) {
                                         DropdownMenuItem(text = { Text("Sort payments") }, onClick = { menuOpen = false; page = Page.SORT })
                                         DropdownMenuItem(text = { Text("Budgets") }, onClick = { menuOpen = false; page = Page.BUDGETS })
                                         DropdownMenuItem(text = { Text("Split expenses") }, onClick = { menuOpen = false; page = Page.SPLITS })
@@ -369,9 +396,26 @@ class MainActivity : FragmentActivity() {
                                 budgets = budgets.orEmpty(),
                                 onOpenSort = { page = Page.SORT },
                                 smsGranted = smsGranted,
+                                smsBlocked = smsBlocked,
                                 notifEnabled = notifEnabled,
                                 onGrantSms = {
-                                    smsLauncher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS))
+                                    if (smsBlocked) {
+                                        context.startActivity(
+                                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+                                        )
+                                    } else {
+                                        smsCouldAsk = smsPromptAllowed()
+                                        smsAskedAt = SystemClock.elapsedRealtime()
+                                        smsLauncher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS))
+                                    }
+                                },
+                                // A limit or budget is a request for alerts; say so when they can't be shown.
+                                alertsBlocked = !alertsAllowed && (dailyLimit > 0 || !budgets.isNullOrEmpty()),
+                                onAllowAlerts = {
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                                    )
                                 },
                                 onEnableNotif = {
                                     context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
@@ -397,7 +441,7 @@ class MainActivity : FragmentActivity() {
                         }
                     }
                 }
-                if (addingPayment) {
+                if (addingPayment && !locked) {
                     AddPaymentDialog(
                         initial = ManualPayment(TxnType.DEBIT, 0, null, System.currentTimeMillis()),
                         accounts = remember(txns) { Balances.latest(txns) },
@@ -411,6 +455,7 @@ class MainActivity : FragmentActivity() {
                     exit = fadeOut(tween(380, easing = EaseOutEmphasized)) +
                         scaleOut(targetScale = 1.06f, animationSpec = tween(380, easing = EaseOutEmphasized)),
                 ) { LockScreen(onUnlock = ::unlock) }
+                }
                 }
             }
         }
@@ -464,6 +509,7 @@ class MainActivity : FragmentActivity() {
         private const val COPIES_REPAIR = 1
         private const val SPLASH_MIN_MS = 750L
         private const val SPLASH_EXIT_MS = 320L
+        private const val SMS_PROMPT_SKIPPED_MS = 500L
 
         // Bump when the SMS parser improves so existing imports are re-parsed once.
         private const val PARSER_VERSION = 14

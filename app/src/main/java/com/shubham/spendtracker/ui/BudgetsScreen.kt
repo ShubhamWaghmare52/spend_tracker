@@ -102,6 +102,9 @@ fun BudgetsScreen(
         }
     }
 
+    // Sheets and dialogs are separate windows above the lock screen: leave them out while locked.
+    if (LocalAppLocked.current) return
+
     editing?.let { cat ->
         AmountDialog(
             "${categoryEmoji(cat)} $cat · monthly budget",

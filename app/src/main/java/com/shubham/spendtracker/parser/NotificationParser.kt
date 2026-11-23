@@ -41,6 +41,20 @@ object NotificationParser {
         return parseText(app, combined, timestamp)
     }
 
+    /**
+     * Why [parse] returned null for this notification, in a few words and without any of its text
+     * (for the on-device capture log). Follows the same checks, in the same order, as [parseText].
+     */
+    fun skipReason(title: String?, text: String?): String {
+        val combined = listOfNotNull(title, text).joinToString(". ").replace(Regex("""\s+"""), " ").trim()
+        if (combined.isEmpty()) return "no text"
+        ignore.find(combined)?.let { return "skipped: \"${it.value.lowercase()}\"" }
+        val body = combined.replace(tapToView, "")
+        if (ParseUtils.earliest(body, TxnType.CREDIT to credit, TxnType.DEBIT to debit) == null) return "no payment wording"
+        if (ParseUtils.findAmountPaise(body) == null) return "no amount"
+        return "not recognised"
+    }
+
     /** Parses a notification's joined title and text, as stored in a payment's raw text. */
     fun parseText(app: String, combined: String, timestamp: Long): ParsedTxn? {
         if (combined.isEmpty() || ignore.containsMatchIn(combined)) return null

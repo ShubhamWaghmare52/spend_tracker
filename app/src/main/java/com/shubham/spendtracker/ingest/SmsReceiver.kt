@@ -26,7 +26,7 @@ class SmsReceiver : BroadcastReceiver() {
                     val ts = pieces.first().timestampMillis
                     val parsed = SmsParser.parse(sender, body, ts)
                     if (parsed == null) {
-                        IngestLog.log(app, "SMS from $sender: not a payment")
+                        IngestLog.log(app, "SMS from $sender: not a payment (${SmsParser.skipReason(sender, body)})")
                         null
                     } else {
                         val saved = app.repository.ingest(parsed)

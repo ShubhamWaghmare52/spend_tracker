@@ -89,6 +89,23 @@ object SmsParser {
         )
     }
 
+    /**
+     * Why [parse] returned null for this SMS, in a few words and without any of its text
+     * (for the on-device capture log). Follows the same checks, in the same order, as [parse].
+     */
+    fun skipReason(sender: String, body: String): String {
+        val text = body.replace(Regex("""\s+"""), " ").trim()
+        if (phoneSender.matches(sender.trim())) return "personal number"
+        if (promoSender.containsMatchIn(sender.trim())) return "promotional sender"
+        ignore.find(text)?.let { return "skipped: \"${it.value.lowercase()}\"" }
+        if (cardBillAck.containsMatchIn(text)) return "card bill payment received"
+        if (!bankContext.containsMatchIn(text)) return "no account mentioned"
+        if (mandateSetup.containsMatchIn(text)) return "autopay or mandate set-up"
+        if (ParseUtils.earliest(text, TxnType.DEBIT to debit, TxnType.CREDIT to credit) == null) return "no debit/credit wording"
+        if (ParseUtils.findAmountPaise(text) == null) return "no amount"
+        return "not recognised"
+    }
+
     /** The first charge taken while an autopay was set up, or null when none was (or it was ₹0). */
     private fun initialCharge(sender: String, body: String, text: String, timestamp: Long): ParsedTxn? {
         val paise = initialDebit.find(text)?.groupValues?.get(1)?.replace(",", "")

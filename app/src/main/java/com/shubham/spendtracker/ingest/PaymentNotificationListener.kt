@@ -37,7 +37,7 @@ class PaymentNotificationListener : NotificationListenerService() {
             try {
                 val parsed = NotificationParser.parse(sbn.packageName, title, text, sbn.postTime)
                 if (parsed == null) {
-                    IngestLog.log(app, "Notification from $appName: not a payment")
+                    IngestLog.log(app, "Notification from $appName: not a payment (${NotificationParser.skipReason(title, text)})")
                     return@launch
                 }
                 val saved = app.repository.ingest(parsed)
